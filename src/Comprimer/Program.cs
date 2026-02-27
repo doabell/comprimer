@@ -37,6 +37,12 @@ internal static class Program
             case "--to-jpg":
                 HandleToJpg(args, imageService);
                 break;
+            case "--pngquant":
+                HandlePngquant(args, imageService);
+                break;
+            case "--mozjpeg":
+                HandleMozjpeg(args, imageService);
+                break;
             case "--toggle-overwrite":
                 HandleToggleOverwrite(args, config, settings);
                 break;
@@ -86,5 +92,23 @@ internal static class Program
             var exePath = Environment.ProcessPath ?? "";
             registry.Register(settings, exePath);
         }
+    }
+
+    private static void HandlePngquant(string[] args, ImageService imageService)
+    {
+        if (args.Length < 2) return;
+        var filePath = args[1];
+        if (!File.Exists(filePath)) return;
+
+        imageService.OptimizePng(filePath);
+    }
+
+    private static void HandleMozjpeg(string[] args, ImageService imageService)
+    {
+        if (args.Length < 2) return;
+        var filePath = args[1];
+        if (!File.Exists(filePath)) return;
+
+        imageService.OptimizeJpg(filePath);
     }
 }

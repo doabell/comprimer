@@ -26,11 +26,13 @@ public sealed class AppSettings
     public int DownscaleSize { get; set; } = 1024;
     public DownscaleMode DownscaleMode { get; set; } = DownscaleMode.LongestSide;
     public List<int> AvailableSizes { get; set; } = [512, 1024];
+    public string Language { get; set; } = "en";
 
     public FormatSettings Jpg { get; set; } = new()
     {
         Downscale = true,
         ConvertToWebP = true,
+        Optimize = true,
     };
 
     public FormatSettings Png { get; set; } = new()
@@ -38,6 +40,7 @@ public sealed class AppSettings
         Downscale = true,
         ConvertToWebP = true,
         ConvertToJpg = true,
+        Optimize = true,
     };
 
     public FormatSettings WebP { get; set; } = new()
@@ -56,6 +59,7 @@ public sealed class FormatSettings
     public bool Downscale { get; set; }
     public bool ConvertToWebP { get; set; }
     public bool ConvertToJpg { get; set; }
+    public bool Optimize { get; set; }
 }
 
 /// <summary>

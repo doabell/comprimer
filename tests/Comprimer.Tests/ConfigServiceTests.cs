@@ -30,6 +30,7 @@ public class ConfigServiceTests
         Assert.True(settings.Jpg.Downscale);
         Assert.True(settings.Jpg.ConvertToWebP);
         Assert.False(settings.Jpg.ConvertToJpg);
+        Assert.True(settings.Jpg.Optimize);
     }
 
     [Fact]
@@ -39,6 +40,7 @@ public class ConfigServiceTests
         Assert.True(settings.Png.Downscale);
         Assert.True(settings.Png.ConvertToWebP);
         Assert.True(settings.Png.ConvertToJpg);
+        Assert.True(settings.Png.Optimize);
     }
 
     [Fact]
@@ -48,5 +50,6 @@ public class ConfigServiceTests
         Assert.True(settings.WebP.Downscale);
         Assert.False(settings.WebP.ConvertToWebP);
         Assert.False(settings.WebP.ConvertToJpg);
+        Assert.False(settings.WebP.Optimize);
     }
 }

@@ -116,7 +116,7 @@ public sealed class ImageService
     }
 
     /// <summary>
-    /// Optimize a PNG using pngquant.
+    /// Optimize a PNG using pngquant. Output suffix: -fs8.
     /// </summary>
     public bool OptimizePng(string inputPath)
     {
@@ -129,8 +129,21 @@ public sealed class ImageService
             return _exe.Run(pngquant, $"--force --ext .png --quality=65-80 \"{inputPath}\"");
         }
 
-        var outputPath = GetOutputPath(inputPath, "-opt");
+        var outputPath = GetOutputPath(inputPath, "-fs8");
         return _exe.Run(pngquant, $"--quality=65-80 -o \"{outputPath}\" \"{inputPath}\"");
+    }
+
+    /// <summary>
+    /// Optimize a JPEG using mozjpeg's cjpeg. Output suffix: -moz.
+    /// </summary>
+    public bool OptimizeJpg(string inputPath)
+    {
+        var cjpeg = _exe.Resolve("cjpeg", _settings.Executables.CjpegPath);
+        if (cjpeg == null)
+            return false;
+
+        var outputPath = GetOutputPath(inputPath, "-moz");
+        return _exe.Run(cjpeg, $"-quality 85 -outfile \"{outputPath}\" \"{inputPath}\"");
     }
 
     /// <summary>
