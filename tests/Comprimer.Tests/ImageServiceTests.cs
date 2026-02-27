@@ -13,8 +13,9 @@ public class ImageServiceTests
         var exe = new ExecutableService();
         var service = new ImageService(exe, settings);
 
-        var result = service.GetOutputPath("/path/to/image.jpg", "-1000px");
-        Assert.Equal("/path/to/image.jpg", result);
+        var input = Path.Combine("path", "to", "image.jpg");
+        var result = service.GetOutputPath(input, "-1000px");
+        Assert.Equal(input, result);
     }
 
     [Fact]
@@ -24,9 +25,13 @@ public class ImageServiceTests
         var exe = new ExecutableService();
         var service = new ImageService(exe, settings);
 
-        // The file doesn't exist on disk, so first candidate should be used
-        var result = service.GetOutputPath("/nonexistent/path/image.png", "-1000px");
-        Assert.Equal("/nonexistent/path/image-1000px.png", result);
+        // Use a non-existent directory so the first candidate is always free
+        var dir = Path.Combine(Path.GetTempPath(), $"comprimer-test-{Guid.NewGuid():N}");
+        var input = Path.Combine(dir, "image.png");
+        var expected = Path.Combine(dir, "image-1000px.png");
+
+        var result = service.GetOutputPath(input, "-1000px");
+        Assert.Equal(expected, result);
     }
 
     [Fact]
@@ -36,8 +41,12 @@ public class ImageServiceTests
         var exe = new ExecutableService();
         var service = new ImageService(exe, settings);
 
-        var result = service.GetOutputPath("/path/photo.webp", "-500px");
-        Assert.Equal("/path/photo-500px.webp", result);
+        var dir = Path.Combine(Path.GetTempPath(), $"comprimer-test-{Guid.NewGuid():N}");
+        var input = Path.Combine(dir, "photo.webp");
+        var expected = Path.Combine(dir, "photo-500px.webp");
+
+        var result = service.GetOutputPath(input, "-500px");
+        Assert.Equal(expected, result);
     }
 
     [Fact]
@@ -47,7 +56,12 @@ public class ImageServiceTests
         var exe = new ExecutableService();
         var service = new ImageService(exe, settings);
 
-        var result = service.GetOutputPath("/path/photo.webp", "-1");
-        Assert.Equal("/path/photo-1.webp", result);
+        var dir = Path.Combine(Path.GetTempPath(), $"comprimer-test-{Guid.NewGuid():N}");
+        var input = Path.Combine(dir, "photo.webp");
+        var expected = Path.Combine(dir, "photo-1.webp");
+
+        var result = service.GetOutputPath(input, "-1");
+        Assert.Equal(expected, result);
     }
 }
+
