@@ -18,10 +18,11 @@ public sealed class RegistryService
     private static readonly string[] PngExtensions = [".png"];
     private static readonly string[] WebPExtensions = [".webp"];
 
-    // System icons from imageres.dll
-    private static readonly string SystemIconDir = Environment.GetFolderPath(Environment.SpecialFolder.System);
-    private static readonly string ImageresPath = Path.Combine(SystemIconDir, "imageres.dll");
-    private static readonly string MenuIcon = $"{ImageresPath},-70";       // photo/image icon
+    // System icons
+    private static readonly string SystemDir = Environment.GetFolderPath(Environment.SpecialFolder.System);
+    private static readonly string PifmgrPath = Path.Combine(SystemDir, "pifmgr.dll");
+    private static readonly string ImageresPath = Path.Combine(SystemDir, "imageres.dll");
+    private static readonly string BeachBallIcon = $"{PifmgrPath},-8";     // beach ball icon for top-level
     private static readonly string DownscaleIcon = $"{ImageresPath},-5306"; // resize icon
     private static readonly string ConvertIcon = $"{ImageresPath},-5381";   // convert/save-as icon
 
@@ -181,7 +182,7 @@ public sealed class RegistryService
         var menuPath = $@"{BaseKeyPath}\{ext}\shell\{MenuName}";
         using var menuKey = Registry.CurrentUser.CreateSubKey(menuPath);
         menuKey.SetValue("MUIVerb", MenuName);
-        menuKey.SetValue("Icon", MenuIcon);
+        menuKey.SetValue("Icon", BeachBallIcon);
         menuKey.SetValue("SubCommands", "");
 
         var shellPath = $@"{menuPath}\shell";
@@ -221,7 +222,7 @@ public sealed class RegistryService
 
         using var key = Registry.CurrentUser.CreateSubKey(keyPath);
         key.SetValue("", $"{MenuName}: {entry.Label}");
-        key.SetValue("Icon", entry.Icon);
+        key.SetValue("Icon", BeachBallIcon);
 
         using var cmdKey = Registry.CurrentUser.CreateSubKey($@"{keyPath}\command");
         cmdKey.SetValue("", $"\"{exePath}\" {entry.Command} \"%1\"");

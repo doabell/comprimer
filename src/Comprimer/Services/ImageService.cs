@@ -22,7 +22,8 @@ public sealed class ImageService
     }
 
     /// <summary>
-    /// Downscale an image so its longest side is at most <paramref name="maxSize"/> pixels.
+    /// Downscale an image so its target dimension is at most <paramref name="maxSize"/> pixels.
+    /// The target dimension depends on <see cref="AppSettings.DownscaleMode"/>.
     /// Does nothing if the image is already smaller.
     /// </summary>
     public bool Downscale(string inputPath, int maxSize)
@@ -31,10 +32,26 @@ public sealed class ImageService
         var ext = Path.GetExtension(inputPath).ToLowerInvariant();
 
         using var original = new Bitmap(inputPath);
-        if (original.Width <= maxSize && original.Height <= maxSize)
+
+        // Determine if downscale is needed based on mode
+        bool needsDownscale = _settings.DownscaleMode switch
+        {
+            DownscaleMode.Width => original.Width > maxSize,
+            DownscaleMode.Height => original.Height > maxSize,
+            _ => original.Width > maxSize || original.Height > maxSize, // LongestSide
+        };
+
+        if (!needsDownscale)
             return true;
 
-        double ratio = Math.Min((double)maxSize / original.Width, (double)maxSize / original.Height);
+        // Calculate new dimensions based on mode
+        double ratio = _settings.DownscaleMode switch
+        {
+            DownscaleMode.Width => (double)maxSize / original.Width,
+            DownscaleMode.Height => (double)maxSize / original.Height,
+            _ => Math.Min((double)maxSize / original.Width, (double)maxSize / original.Height),
+        };
+
         int newWidth = (int)(original.Width * ratio);
         int newHeight = (int)(original.Height * ratio);
 

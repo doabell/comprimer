@@ -3,14 +3,29 @@ using System.Text.Json.Serialization;
 namespace Comprimer.Models;
 
 /// <summary>
+/// Controls which dimension the downscale limit applies to.
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum DownscaleMode
+{
+    /// <summary>Limit applies to whichever side is longer.</summary>
+    LongestSide,
+    /// <summary>Limit applies to the width only.</summary>
+    Width,
+    /// <summary>Limit applies to the height only.</summary>
+    Height,
+}
+
+/// <summary>
 /// Root settings for the application, persisted to settings.json.
 /// </summary>
 public sealed class AppSettings
 {
     public bool NestedMenu { get; set; } = true;
     public bool OverwriteOriginal { get; set; }
-    public int DownscaleSize { get; set; } = 1000;
-    public List<int> AvailableSizes { get; set; } = [1000];
+    public int DownscaleSize { get; set; } = 1024;
+    public DownscaleMode DownscaleMode { get; set; } = DownscaleMode.LongestSide;
+    public List<int> AvailableSizes { get; set; } = [512, 1024];
 
     public FormatSettings Jpg { get; set; } = new()
     {

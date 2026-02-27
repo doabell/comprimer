@@ -12,6 +12,7 @@ internal static class Program
         if (args.Length == 0)
         {
             // GUI mode: open settings
+            Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             Application.Run(new SettingsForm());

@@ -5,12 +5,14 @@ A Windows 10/11 right-click context menu tool for image compression and conversi
 ## Features
 
 - **Right-click context menu** for JPG, JPEG, PNG, and WebP files
-- **Downscale** images to configurable sizes (default 1000px) — only shrinks if larger
+- **Downscale** images to configurable sizes (defaults: 512px, 1024px)
+- **Downscale mode**: limit by longest side, width only, or height only
 - **Convert to WebP** from JPG/PNG using cwebp
 - **Convert to JPG** from PNG using mozjpeg (cjpeg)
 - **Settings GUI** to configure operations, menu style, and executable paths
 - **Nested or flat** context menu layout
 - **Overwrite or suffix** mode (toggle from context menu or settings)
+- **Single executable** — no DLLs to manage
 
 ## Requirements
 
@@ -34,11 +36,12 @@ A Windows 10/11 right-click context menu tool for image compression and conversi
 
 - **Nested menu**: Groups all operations under a "Comprimer" submenu
 - **Overwrite original**: Replaces the original file instead of creating a suffixed copy
-- **Downscale sizes**: Add/remove target sizes (e.g., 1000px, 800px, 500px)
+- **Downscale sizes**: Add/remove target sizes (e.g., 512px, 1024px)
+- **Downscale mode**: Longest side (default), width only, or height only
 
 ### External Tools
 
-External tools for optimized encoding. If detected in PATH, they're used automatically.
+External tools for optimized encoding. If detected in PATH, they're used automatically. You can also set a custom path to override PATH detection.
 
 | Tool     | Purpose                    |
 |----------|----------------------------|
@@ -49,7 +52,7 @@ External tools for optimized encoding. If detected in PATH, they're used automat
 ### Output Naming
 
 When **Overwrite original** is off:
-- Downscale: `photo-1000px.jpg`
+- Downscale: `photo-1024px.jpg`
 - Convert: `photo.webp` (adds `-1`, `-2` only if file exists)
 
 ## Building

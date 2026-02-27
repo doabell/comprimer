@@ -16,9 +16,11 @@ public class ConfigServiceTests
         Assert.NotNull(settings);
         Assert.True(settings.NestedMenu);
         Assert.False(settings.OverwriteOriginal);
-        Assert.Equal(1000, settings.DownscaleSize);
-        Assert.Single(settings.AvailableSizes);
-        Assert.Equal(1000, settings.AvailableSizes[0]);
+        Assert.Equal(1024, settings.DownscaleSize);
+        Assert.Equal(DownscaleMode.LongestSide, settings.DownscaleMode);
+        Assert.Equal(2, settings.AvailableSizes.Count);
+        Assert.Equal(512, settings.AvailableSizes[0]);
+        Assert.Equal(1024, settings.AvailableSizes[1]);
     }
 
     [Fact]
