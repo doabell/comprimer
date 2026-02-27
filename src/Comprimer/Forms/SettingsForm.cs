@@ -109,8 +109,8 @@ public sealed class SettingsForm : Form
     private void BuildUI()
     {
         Text = "Comprimer";
-        ClientSize = new Size(520, 730);
-        MinimumSize = new Size(520, 650);
+        ClientSize = new Size(520, 780);
+        MinimumSize = new Size(520, 700);
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
@@ -120,7 +120,7 @@ public sealed class SettingsForm : Form
         _scroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
         Controls.Add(_scroll);
 
-        int y = 16;
+        int y = 18;
         int w = 480;
         int left = 20;
 
@@ -137,7 +137,7 @@ public sealed class SettingsForm : Form
 
         _lnkLang = new LinkLabel
         {
-            Text = T("En français", "In English"),
+            Text = T("En français", "En anglais"),
             Font = F(9),
             AutoSize = true,
             Location = new Point(w - 60, y + 8),
@@ -147,7 +147,7 @@ public sealed class SettingsForm : Form
         _lnkLang.Click += LnkLang_Click;
         _scroll.Controls.Add(_lnkLang);
 
-        y += 34;
+        y += 38;
         _lblSubtitle = new Label
         {
             Text = T("Image compression & conversion for Explorer",
@@ -158,42 +158,42 @@ public sealed class SettingsForm : Form
             Location = new Point(left + 2, y),
         };
         _scroll.Controls.Add(_lblSubtitle);
-        y += 28;
+        y += 32;
 
         // ─── 1. Explorer Integration ────────────────────────
         _lblSecExplorer = SectionLabel(_scroll, T("Explorer Integration", "Intégration Explorer"), ref y, left);
-        var card1 = Card(_scroll, ref y, left, w, 82);
+        var card1 = Card(_scroll, ref y, left, w, 86);
 
-        _lblInstallStatus = new Label { Font = F(9), AutoSize = true, Location = new Point(16, 8) };
+        _lblInstallStatus = new Label { Font = F(9), AutoSize = true, Location = new Point(16, 10) };
         card1.Controls.Add(_lblInstallStatus);
 
-        _lblUpdateHint = new Label { Font = F(8), ForeColor = DimText, AutoSize = true, Location = new Point(16, 28), Visible = false };
+        _lblUpdateHint = new Label { Font = F(8), ForeColor = DimText, AutoSize = true, Location = new Point(16, 30), Visible = false };
         card1.Controls.Add(_lblUpdateHint);
 
-        _btnToggleInstall = Btn("", 16, 52, 200, 24);
+        _btnToggleInstall = Btn("", 16, 54, 200, 26);
         _btnToggleInstall.Click += BtnToggleInstall_Click;
         card1.Controls.Add(_btnToggleInstall);
 
-        _btnApply = Btn(T("Apply", "Appliquer"), 224, 52, 100, 24);
+        _btnApply = Btn(T("Apply", "Appliquer"), 224, 54, 100, 26);
         _btnApply.Click += BtnApply_Click;
         card1.Controls.Add(_btnApply);
 
         // ─── 2. Options ─────────────────────────────────────
         _lblSecOptions = SectionLabel(_scroll, T("Options", "Options"), ref y, left);
-        var card2 = Card(_scroll, ref y, left, w, 76);
+        var card2 = Card(_scroll, ref y, left, w, 80);
 
-        _chkNested = Chk(T("Nested submenu", "Sous-menu imbriqué"), 16, 12);
-        _chkOverwrite = Chk(T("Overwrite originals", "Écraser les originaux"), 16, 38);
+        _chkNested = Chk(T("Nested submenu", "Sous-menu imbriqué"), 16, 14);
+        _chkOverwrite = Chk(T("Overwrite originals", "Écraser les originaux"), 16, 42);
         card2.Controls.Add(_chkNested);
         card2.Controls.Add(_chkOverwrite);
 
-        _lblModeLabel = Lbl(T("Downscale limit:", "Limite de réduction :"), F(8.5f), TextColor, 240, 14);
+        _lblModeLabel = Lbl(T("Downscale limit:", "Limite de réduction :"), F(8.5f), TextColor, 240, 16);
         card2.Controls.Add(_lblModeLabel);
         _cboMode = new ComboBox
         {
             Font = F(8.5f),
             DropDownStyle = ComboBoxStyle.DropDownList,
-            Location = new Point(355, 10),
+            Location = new Point(355, 12),
             Size = new Size(115, 24),
         };
         _cboMode.Items.AddRange([
@@ -206,11 +206,11 @@ public sealed class SettingsForm : Form
 
         // ─── 3. Downscale Sizes ─────────────────────────────
         _lblSecSizes = SectionLabel(_scroll, T("Downscale Sizes (px)", "Tailles de réduction (px)"), ref y, left);
-        var card3 = Card(_scroll, ref y, left, w, 50);
+        var card3 = Card(_scroll, ref y, left, w, 52);
 
         _sizesFlow = new FlowLayoutPanel
         {
-            Location = new Point(10, 8),
+            Location = new Point(10, 10),
             Size = new Size(350, 34),
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = false,
@@ -221,7 +221,7 @@ public sealed class SettingsForm : Form
         _nudNewSize = new NumericUpDown
         {
             Font = F(8.5f),
-            Location = new Point(370, 12),
+            Location = new Point(370, 14),
             Size = new Size(64, 22),
             Minimum = 50,
             Maximum = 10000,
@@ -230,49 +230,49 @@ public sealed class SettingsForm : Form
         };
         card3.Controls.Add(_nudNewSize);
 
-        var btnAdd = Btn("+", 438, 11, 28, 24);
+        var btnAdd = Btn("+", 438, 13, 28, 24);
         btnAdd.Font = F(11, FontStyle.Bold);
         btnAdd.Click += BtnAddSize_Click;
         card3.Controls.Add(btnAdd);
 
         // ─── 4. Format Operations ───────────────────────────
         _lblSecFormats = SectionLabel(_scroll, T("Format Operations", "Opérations par format"), ref y, left);
-        var card4 = Card(_scroll, ref y, left, w, 118);
+        var card4 = Card(_scroll, ref y, left, w, 124);
 
         // Column headers
-        _lblColFormat = Lbl(T("Format", "Format"), F(8, FontStyle.Bold), DimText, 16, 8);
-        _lblColDown = Lbl(T("Downscale", "Réduire"), F(8, FontStyle.Bold), DimText, 100, 8);
-        _lblColOpt = Lbl(T("Optimize", "Optimiser"), F(8, FontStyle.Bold), DimText, 195, 8);
-        _lblColWebP = Lbl("→ WebP", F(8, FontStyle.Bold), DimText, 295, 8);
-        _lblColJpg = Lbl("→ JPG", F(8, FontStyle.Bold), DimText, 395, 8);
+        _lblColFormat = Lbl(T("Format", "Format"), F(8, FontStyle.Bold), DimText, 16, 10);
+        _lblColDown = Lbl(T("Downscale", "Réduire"), F(8, FontStyle.Bold), DimText, 100, 10);
+        _lblColOpt = Lbl(T("Optimize", "Optimiser"), F(8, FontStyle.Bold), DimText, 195, 10);
+        _lblColWebP = Lbl("→ WebP", F(8, FontStyle.Bold), DimText, 295, 10);
+        _lblColJpg = Lbl("→ JPG", F(8, FontStyle.Bold), DimText, 395, 10);
         card4.Controls.Add(_lblColFormat);
         card4.Controls.Add(_lblColDown);
         card4.Controls.Add(_lblColOpt);
         card4.Controls.Add(_lblColWebP);
         card4.Controls.Add(_lblColJpg);
 
-        int ry = 30;
+        int ry = 34;
         card4.Controls.Add(Lbl("JPG", F(8.5f, FontStyle.Bold), TextColor, 16, ry + 2));
         _chkJpgDown = Chk("", 120, ry); card4.Controls.Add(_chkJpgDown);
         _chkJpgMoz = Chk("", 215, ry); card4.Controls.Add(_chkJpgMoz);
         _chkJpgWebP = Chk("", 315, ry); card4.Controls.Add(_chkJpgWebP);
 
-        ry += 26;
+        ry += 28;
         card4.Controls.Add(Lbl("PNG", F(8.5f, FontStyle.Bold), TextColor, 16, ry + 2));
         _chkPngDown = Chk("", 120, ry); card4.Controls.Add(_chkPngDown);
         _chkPngOpt = Chk("", 215, ry); card4.Controls.Add(_chkPngOpt);
         _chkPngWebP = Chk("", 315, ry); card4.Controls.Add(_chkPngWebP);
         _chkPngJpg = Chk("", 415, ry); card4.Controls.Add(_chkPngJpg);
 
-        ry += 26;
+        ry += 28;
         card4.Controls.Add(Lbl("WebP", F(8.5f, FontStyle.Bold), TextColor, 16, ry + 2));
         _chkWebPDown = Chk("", 120, ry); card4.Controls.Add(_chkWebPDown);
 
         // ─── 5. External Tools ──────────────────────────────
         _lblSecTools = SectionLabel(_scroll, T("External Tools", "Outils externes"), ref y, left);
-        var card5 = Card(_scroll, ref y, left, w, 126);
+        var card5 = Card(_scroll, ref y, left, w, 130);
 
-        int ty = 10;
+        int ty = 12;
         AddToolRow(card5, "pngquant", ref ty, out _lblPngquantStatus, out _txtPngquant, out _btnBrowsePngquant);
         AddToolRow(card5, "cwebp", ref ty, out _lblCwebpStatus, out _txtCwebp, out _btnBrowseCwebp);
         AddToolRow(card5, "cjpeg", ref ty, out _lblCjpegStatus, out _txtCjpeg, out _btnBrowseCjpeg, T("cjpeg from mozjpeg", "cjpeg de mozjpeg"));
@@ -291,7 +291,7 @@ public sealed class SettingsForm : Form
 
     private Label SectionLabel(Control parent, string title, ref int y, int left)
     {
-        y += 6;
+        y += 10;
         var lbl = new Label
         {
             Text = title.ToUpperInvariant(),
@@ -301,7 +301,7 @@ public sealed class SettingsForm : Form
             Location = new Point(left + 4, y),
         };
         parent.Controls.Add(lbl);
-        y += 18;
+        y += 20;
         return lbl;
     }
 
@@ -315,7 +315,7 @@ public sealed class SettingsForm : Form
             BorderColor = BorderColor,
         };
         parent.Controls.Add(p);
-        y += h + 6;
+        y += h + 8;
         return p;
     }
 
@@ -384,7 +384,7 @@ public sealed class SettingsForm : Form
         browse.Click += (_, _) => BrowseExe(target);
         parent.Controls.Add(browse);
 
-        y += 36;
+        y += 38;
     }
 
     // ── Data Load / Save ────────────────────────────────────
@@ -568,6 +568,9 @@ public sealed class SettingsForm : Form
     {
         _isFr = !_isFr;
         SaveSettings();
+        // Re-register context menus with updated language if installed
+        if (_registry.IsRegistered())
+            _registry.Register(_settings, Application.ExecutablePath);
         // Rebuild UI with new language
         Controls.Clear();
         BuildUI();

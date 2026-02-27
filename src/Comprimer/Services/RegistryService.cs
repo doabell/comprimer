@@ -147,6 +147,9 @@ public sealed class RegistryService
     private static List<MenuEntry> BuildMenuEntries(AppSettings settings)
     {
         var entries = new List<MenuEntry>();
+        bool fr = settings.Language == "fr";
+
+        string Tr(string en, string frText) => fr ? frText : en;
 
         // JPG operations
         if (settings.Jpg.Downscale)
@@ -156,7 +159,7 @@ public sealed class RegistryService
                 entries.Add(new MenuEntry
                 {
                     Id = $"Downscale{size}",
-                    Label = $"Downscale to {size}px",
+                    Label = Tr($"Downscale to {size}px", $"Réduire à {size}px"),
                     Command = $"--downscale {size}",
                     Extensions = JpgExtensions,
                 });
@@ -167,7 +170,7 @@ public sealed class RegistryService
             entries.Add(new MenuEntry
             {
                 Id = "Mozjpeg",
-                Label = "Optimize (mozjpeg)",
+                Label = Tr("Optimize (mozjpeg)", "Optimiser (mozjpeg)"),
                 Command = "--mozjpeg",
                 Extensions = JpgExtensions,
             });
@@ -177,7 +180,7 @@ public sealed class RegistryService
             entries.Add(new MenuEntry
             {
                 Id = "ToWebP",
-                Label = "Convert to WebP",
+                Label = Tr("Convert to WebP (libwebp)", "Convertir en WebP (libwebp)"),
                 Command = "--to-webp",
                 Extensions = JpgExtensions,
             });
@@ -191,7 +194,7 @@ public sealed class RegistryService
                 entries.Add(new MenuEntry
                 {
                     Id = $"Downscale{size}",
-                    Label = $"Downscale to {size}px",
+                    Label = Tr($"Downscale to {size}px", $"Réduire à {size}px"),
                     Command = $"--downscale {size}",
                     Extensions = PngExtensions,
                 });
@@ -202,7 +205,7 @@ public sealed class RegistryService
             entries.Add(new MenuEntry
             {
                 Id = "Pngquant",
-                Label = "Optimize (pngquant)",
+                Label = Tr("Optimize (pngquant)", "Optimiser (pngquant)"),
                 Command = "--pngquant",
                 Extensions = PngExtensions,
             });
@@ -212,7 +215,7 @@ public sealed class RegistryService
             entries.Add(new MenuEntry
             {
                 Id = "ToWebP",
-                Label = "Convert to WebP",
+                Label = Tr("Convert to WebP (libwebp)", "Convertir en WebP (libwebp)"),
                 Command = "--to-webp",
                 Extensions = PngExtensions,
             });
@@ -222,7 +225,7 @@ public sealed class RegistryService
             entries.Add(new MenuEntry
             {
                 Id = "ToJpg",
-                Label = "Convert to JPG (mozjpeg)",
+                Label = Tr("Convert to JPG (mozjpeg)", "Convertir en JPG (mozjpeg)"),
                 Command = "--to-jpg",
                 Extensions = PngExtensions,
             });
@@ -236,7 +239,7 @@ public sealed class RegistryService
                 entries.Add(new MenuEntry
                 {
                     Id = $"Downscale{size}",
-                    Label = $"Downscale to {size}px",
+                    Label = Tr($"Downscale to {size}px", $"Réduire à {size}px"),
                     Command = $"--downscale {size}",
                     Extensions = WebPExtensions,
                 });
