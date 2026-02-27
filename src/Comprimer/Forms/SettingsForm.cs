@@ -78,8 +78,8 @@ public sealed class SettingsForm : Form
     private void BuildUI()
     {
         Text = "Comprimer";
-        ClientSize = new Size(480, 660);
-        MinimumSize = new Size(480, 600);
+        ClientSize = new Size(510, 680);
+        MinimumSize = new Size(510, 620);
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
@@ -90,7 +90,7 @@ public sealed class SettingsForm : Form
         Controls.Add(scroll);
 
         int y = 20;
-        int w = 440;
+        int w = 470;
         int left = 20;
 
         // ─── Header ─────────────────────────────────────────
@@ -111,25 +111,25 @@ public sealed class SettingsForm : Form
             AutoSize = true,
             Location = new Point(left + 2, y),
         });
-        y += 28;
+        y += 30;
 
         // ─── 1. Explorer Integration ────────────────────────
         y = Section(scroll, "Explorer Integration", y, left);
-        var card1 = Card(scroll, ref y, left, w, 56);
+        var card1 = Card(scroll, ref y, left, w, 60);
 
-        _lblInstallStatus = new Label { Font = F(9), AutoSize = true, Location = new Point(14, 8) };
+        _lblInstallStatus = new Label { Font = F(9), AutoSize = true, Location = new Point(16, 10) };
         card1.Controls.Add(_lblInstallStatus);
 
-        _btnToggleInstall = Btn("", 14, 28, 180, 22);
+        _btnToggleInstall = Btn("", 16, 32, 210, 22);
         _btnToggleInstall.Click += BtnToggleInstall_Click;
         card1.Controls.Add(_btnToggleInstall);
 
         // ─── 2. Options ─────────────────────────────────────
         y = Section(scroll, "Options", y, left);
-        var card2 = Card(scroll, ref y, left, w, 74);
+        var card2 = Card(scroll, ref y, left, w, 76);
 
-        _chkNested = Chk("Nested submenu", 14, 10);
-        _chkOverwrite = Chk("Overwrite originals", 14, 34);
+        _chkNested = Chk("Nested submenu", 16, 12);
+        _chkOverwrite = Chk("Overwrite originals", 16, 38);
         card2.Controls.Add(_chkNested);
         card2.Controls.Add(_chkOverwrite);
 
@@ -139,14 +139,14 @@ public sealed class SettingsForm : Form
             Font = F(8.5f),
             ForeColor = TextColor,
             AutoSize = true,
-            Location = new Point(220, 12),
+            Location = new Point(230, 14),
         });
         _cboMode = new ComboBox
         {
             Font = F(8.5f),
             DropDownStyle = ComboBoxStyle.DropDownList,
-            Location = new Point(324, 8),
-            Size = new Size(102, 24),
+            Location = new Point(338, 10),
+            Size = new Size(120, 24),
         };
         _cboMode.Items.AddRange(["Longest side", "Width only", "Height only"]);
         _cboMode.SelectedIndex = 0;
@@ -158,8 +158,8 @@ public sealed class SettingsForm : Form
 
         _sizesFlow = new FlowLayoutPanel
         {
-            Location = new Point(10, 10),
-            Size = new Size(320, 32),
+            Location = new Point(10, 8),
+            Size = new Size(340, 34),
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = false,
             AutoScroll = true,
@@ -169,8 +169,8 @@ public sealed class SettingsForm : Form
         _nudNewSize = new NumericUpDown
         {
             Font = F(8.5f),
-            Location = new Point(338, 12),
-            Size = new Size(62, 22),
+            Location = new Point(360, 12),
+            Size = new Size(64, 22),
             Minimum = 50,
             Maximum = 10000,
             Value = 1024,
@@ -178,7 +178,7 @@ public sealed class SettingsForm : Form
         };
         card3.Controls.Add(_nudNewSize);
 
-        var btnAdd = Btn("+", 404, 11, 26, 24);
+        var btnAdd = Btn("+", 428, 11, 28, 24);
         btnAdd.Font = F(11, FontStyle.Bold);
         btnAdd.Click += BtnAddSize_Click;
         card3.Controls.Add(btnAdd);
@@ -188,34 +188,34 @@ public sealed class SettingsForm : Form
         var card4 = Card(scroll, ref y, left, w, 110);
 
         // Column headers
-        card4.Controls.Add(Lbl("Format", F(8, FontStyle.Bold), DimText, 14, 8));
-        card4.Controls.Add(Lbl("Downscale", F(8, FontStyle.Bold), DimText, 110, 8));
-        card4.Controls.Add(Lbl("→ WebP", F(8, FontStyle.Bold), DimText, 220, 8));
-        card4.Controls.Add(Lbl("→ JPG", F(8, FontStyle.Bold), DimText, 330, 8));
+        card4.Controls.Add(Lbl("Format", F(8, FontStyle.Bold), DimText, 16, 8));
+        card4.Controls.Add(Lbl("Downscale", F(8, FontStyle.Bold), DimText, 120, 8));
+        card4.Controls.Add(Lbl("→ WebP", F(8, FontStyle.Bold), DimText, 240, 8));
+        card4.Controls.Add(Lbl("→ JPG", F(8, FontStyle.Bold), DimText, 360, 8));
 
-        int ry = 28;
-        card4.Controls.Add(Lbl("JPG", F(8.5f, FontStyle.Bold), TextColor, 14, ry + 2));
-        _chkJpgDown = Chk("", 130, ry); card4.Controls.Add(_chkJpgDown);
-        _chkJpgWebP = Chk("", 240, ry); card4.Controls.Add(_chkJpgWebP);
-
-        ry += 26;
-        card4.Controls.Add(Lbl("PNG", F(8.5f, FontStyle.Bold), TextColor, 14, ry + 2));
-        _chkPngDown = Chk("", 130, ry); card4.Controls.Add(_chkPngDown);
-        _chkPngWebP = Chk("", 240, ry); card4.Controls.Add(_chkPngWebP);
-        _chkPngJpg = Chk("", 350, ry); card4.Controls.Add(_chkPngJpg);
+        int ry = 30;
+        card4.Controls.Add(Lbl("JPG", F(8.5f, FontStyle.Bold), TextColor, 16, ry + 2));
+        _chkJpgDown = Chk("", 140, ry); card4.Controls.Add(_chkJpgDown);
+        _chkJpgWebP = Chk("", 260, ry); card4.Controls.Add(_chkJpgWebP);
 
         ry += 26;
-        card4.Controls.Add(Lbl("WebP", F(8.5f, FontStyle.Bold), TextColor, 14, ry + 2));
-        _chkWebPDown = Chk("", 130, ry); card4.Controls.Add(_chkWebPDown);
+        card4.Controls.Add(Lbl("PNG", F(8.5f, FontStyle.Bold), TextColor, 16, ry + 2));
+        _chkPngDown = Chk("", 140, ry); card4.Controls.Add(_chkPngDown);
+        _chkPngWebP = Chk("", 260, ry); card4.Controls.Add(_chkPngWebP);
+        _chkPngJpg = Chk("", 380, ry); card4.Controls.Add(_chkPngJpg);
+
+        ry += 26;
+        card4.Controls.Add(Lbl("WebP", F(8.5f, FontStyle.Bold), TextColor, 16, ry + 2));
+        _chkWebPDown = Chk("", 140, ry); card4.Controls.Add(_chkWebPDown);
 
         // ─── 5. External Tools ──────────────────────────────
         y = Section(scroll, "External Tools", y, left);
-        var card5 = Card(scroll, ref y, left, w, 120);
+        var card5 = Card(scroll, ref y, left, w, 126);
 
         int ty = 10;
         AddToolRow(card5, "pngquant", ref ty, out _lblPngquantStatus, out _txtPngquant, out _btnBrowsePngquant);
         AddToolRow(card5, "cwebp", ref ty, out _lblCwebpStatus, out _txtCwebp, out _btnBrowseCwebp);
-        AddToolRow(card5, "cjpeg (mozjpeg)", ref ty, out _lblCjpegStatus, out _txtCjpeg, out _btnBrowseCjpeg);
+        AddToolRow(card5, "cjpeg", ref ty, out _lblCjpegStatus, out _txtCjpeg, out _btnBrowseCjpeg, "cjpeg from mozjpeg");
     }
 
     // ── UI Helpers ──────────────────────────────────────────
@@ -283,18 +283,24 @@ public sealed class SettingsForm : Form
         return b;
     }
 
-    private void AddToolRow(Control parent, string name, ref int y, out Label status, out TextBox pathBox, out Button browse)
+    private void AddToolRow(Control parent, string name, ref int y, out Label status, out TextBox pathBox, out Button browse, string? tooltip = null)
     {
-        parent.Controls.Add(Lbl(name, F(8.5f, FontStyle.Bold), TextColor, 14, y + 3));
+        var lbl = Lbl(name, F(8.5f, FontStyle.Bold), TextColor, 16, y + 3);
+        parent.Controls.Add(lbl);
+        if (tooltip != null)
+        {
+            var tip = new ToolTip();
+            tip.SetToolTip(lbl, tooltip);
+        }
 
-        status = new Label { Font = F(8), AutoSize = true, Location = new Point(130, y + 4) };
+        status = new Label { Font = F(8), AutoSize = true, Location = new Point(100, y + 4) };
         parent.Controls.Add(status);
 
         pathBox = new TextBox
         {
             Font = F(8),
-            Size = new Size(170, 22),
-            Location = new Point(220, y + 1),
+            Size = new Size(210, 22),
+            Location = new Point(190, y + 1),
             BorderStyle = BorderStyle.FixedSingle,
             PlaceholderText = "Custom path (optional)",
         };
@@ -304,8 +310,8 @@ public sealed class SettingsForm : Form
         {
             Text = "…",
             Font = F(8),
-            Size = new Size(26, 22),
-            Location = new Point(394, y + 1),
+            Size = new Size(28, 22),
+            Location = new Point(406, y + 1),
             FlatStyle = FlatStyle.Flat,
             ForeColor = DimText,
             BackColor = CardColor,
@@ -316,7 +322,7 @@ public sealed class SettingsForm : Form
         browse.Click += (_, _) => BrowseExe(target);
         parent.Controls.Add(browse);
 
-        y += 34;
+        y += 36;
     }
 
     // ── Data Load / Save ────────────────────────────────────
@@ -524,7 +530,7 @@ public sealed class SettingsForm : Form
         public SizeChip(int size)
         {
             SizeValue = size;
-            Size = new Size(72, 24);
+            Size = new Size(84, 26);
             Margin = new Padding(2, 3, 2, 3);
             BackColor = ChipBg;
             Cursor = Cursors.Default;
@@ -535,8 +541,8 @@ public sealed class SettingsForm : Form
                 Font = new("Segoe UI", 8.25f),
                 ForeColor = AccentColor,
                 AutoSize = false,
-                Size = new Size(44, 18),
-                Location = new Point(6, 3),
+                Size = new Size(54, 20),
+                Location = new Point(8, 3),
                 TextAlign = ContentAlignment.MiddleLeft,
             });
 
@@ -546,8 +552,8 @@ public sealed class SettingsForm : Form
                 Font = new("Segoe UI", 8.5f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(140, 140, 140),
                 AutoSize = false,
-                Size = new Size(18, 18),
-                Location = new Point(50, 3),
+                Size = new Size(18, 20),
+                Location = new Point(62, 3),
                 TextAlign = ContentAlignment.MiddleCenter,
                 Cursor = Cursors.Hand,
             };
