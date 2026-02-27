@@ -481,8 +481,8 @@ public sealed class SettingsForm : Form
             if (regPath != null && !string.Equals(regPath, curPath, StringComparison.OrdinalIgnoreCase))
             {
                 _lblUpdateHint.Text = T(
-                    $"⚠ Registered path differs — click Apply to update",
-                    $"⚠ Chemin enregistré différent — cliquez Appliquer pour mettre à jour");
+                    "⚠ Registered path differs — click Apply to update",
+                    "⚠ Chemin enregistré différent — cliquez Appliquer pour mettre à jour");
                 _lblUpdateHint.ForeColor = RedColor;
                 _lblUpdateHint.Visible = true;
             }
@@ -569,8 +569,6 @@ public sealed class SettingsForm : Form
         _isFr = !_isFr;
         SaveSettings();
         // Rebuild UI with new language
-        _scroll.Controls.Clear();
-        _scroll.Dispose();
         Controls.Clear();
         BuildUI();
         LoadSettings();
