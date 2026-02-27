@@ -9,6 +9,9 @@ namespace Comprimer.Services;
 /// </summary>
 public sealed class ImageService
 {
+    private const string ConversionSuffix = "-1";
+    private const int MaxAutoIncrementRetries = 1000;
+
     private readonly ExecutableService _exe;
     private readonly AppSettings _settings;
 
@@ -46,7 +49,7 @@ public sealed class ImageService
     /// </summary>
     public bool ConvertToWebP(string inputPath)
     {
-        var outputPath = GetOutputPath(Path.ChangeExtension(inputPath, ".webp"), "-1");
+        var outputPath = GetOutputPath(Path.ChangeExtension(inputPath, ".webp"), ConversionSuffix);
         var cwebp = _exe.Resolve("cwebp", _settings.Executables.Img2WebPPath);
 
         if (cwebp != null)
@@ -65,7 +68,7 @@ public sealed class ImageService
     /// </summary>
     public bool ConvertToJpg(string inputPath)
     {
-        var outputPath = GetOutputPath(Path.ChangeExtension(inputPath, ".jpg"), "-1");
+        var outputPath = GetOutputPath(Path.ChangeExtension(inputPath, ".jpg"), ConversionSuffix);
         var cjpeg = _exe.Resolve("cjpeg", _settings.Executables.CjpegPath);
 
         if (cjpeg != null)
@@ -120,7 +123,7 @@ public sealed class ImageService
             return candidate;
 
         // Auto-increment: -1, -2, -3, ...
-        for (int i = 1; i < 1000; i++)
+        for (int i = 1; i < MaxAutoIncrementRetries; i++)
         {
             candidate = Path.Combine(dir, $"{name}{suffix}-{i}{ext}");
             if (!File.Exists(candidate))

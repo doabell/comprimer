@@ -11,6 +11,9 @@ public sealed class RegistryService
     private const string BaseKeyPath = @"Software\Classes\SystemFileAssociations";
     private const string MenuName = "Comprimer";
 
+    private const string CheckedPrefix = "✓ ";
+    private const string UncheckedPrefix = "   "; // spacing to visually align with checked items
+
     private static readonly string[] JpgExtensions = [".jpg", ".jpeg"];
     private static readonly string[] PngExtensions = [".png"];
     private static readonly string[] WebPExtensions = [".webp"];
@@ -186,7 +189,8 @@ public sealed class RegistryService
         var owPath = $@"{shellPath}\OverwriteToggle";
         using (var owKey = Registry.CurrentUser.CreateSubKey(owPath))
         {
-            var label = settings.OverwriteOriginal ? "✓ Overwrite original" : "  Overwrite original";
+            var prefix = settings.OverwriteOriginal ? CheckedPrefix : UncheckedPrefix;
+            var label = $"{prefix}Overwrite original";
             owKey.SetValue("MUIVerb", label);
             using var owCmd = Registry.CurrentUser.CreateSubKey($@"{owPath}\command");
             owCmd.SetValue("", $"\"{exePath}\" --toggle-overwrite \"%1\"");

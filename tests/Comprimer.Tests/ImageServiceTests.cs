@@ -41,7 +41,7 @@ public class ImageServiceTests
     }
 
     [Fact]
-    public void GetOutputPath_ConvertSuffix()
+    public void GetOutputPath_AppendsConvertSuffix_WhenOverwriteDisabled()
     {
         var settings = new AppSettings { OverwriteOriginal = false };
         var exe = new ExecutableService();
