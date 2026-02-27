@@ -260,7 +260,7 @@ public sealed class SettingsForm : Form
     private static CheckBox Chk(string text, int x, int y) => new()
     {
         Text = text,
-        Font = new("Segoe UI", 8.5f),
+        Font = F(8.5f),
         ForeColor = TextColor,
         AutoSize = true,
         Location = new Point(x, y),
@@ -404,13 +404,13 @@ public sealed class SettingsForm : Form
         {
             status.Text = "✓ Custom";
             status.ForeColor = GreenColor;
+            pathBox.PlaceholderText = "Custom path set";
         }
         else if (_exe.IsInPath(exeName))
         {
             status.Text = "✓ PATH";
             status.ForeColor = GreenColor;
-            if (string.IsNullOrWhiteSpace(pathBox.Text))
-                pathBox.PlaceholderText = "Using PATH (override optional)";
+            pathBox.PlaceholderText = "Using PATH (override optional)";
         }
         else
         {
