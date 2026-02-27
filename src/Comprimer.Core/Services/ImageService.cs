@@ -1,5 +1,6 @@
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Processing;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 using Comprimer.Models;
 
 namespace Comprimer.Services;
@@ -9,7 +10,6 @@ namespace Comprimer.Services;
 /// </summary>
 public sealed class ImageService
 {
-    private const string ConversionSuffix = "-1";
     private const int MaxAutoIncrementRetries = 1000;
 
     private readonly ExecutableService _exe;
@@ -28,58 +28,74 @@ public sealed class ImageService
     public bool Downscale(string inputPath, int maxSize)
     {
         var outputPath = GetOutputPath(inputPath, $"-{maxSize}px");
-        using var image = Image.Load(inputPath);
+        var ext = Path.GetExtension(inputPath).ToLowerInvariant();
 
-        if (image.Width <= maxSize && image.Height <= maxSize)
-            return true; // already small enough
+        using var original = new Bitmap(inputPath);
+        if (original.Width <= maxSize && original.Height <= maxSize)
+            return true;
 
-        var options = new ResizeOptions
+        double ratio = Math.Min((double)maxSize / original.Width, (double)maxSize / original.Height);
+        int newWidth = (int)(original.Width * ratio);
+        int newHeight = (int)(original.Height * ratio);
+
+        using var resized = new Bitmap(newWidth, newHeight);
+        using (var g = Graphics.FromImage(resized))
         {
-            Mode = ResizeMode.Max,
-            Size = new Size(maxSize, maxSize),
-        };
-        image.Mutate(x => x.Resize(options));
-        image.Save(outputPath);
+            g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            g.SmoothingMode = SmoothingMode.HighQuality;
+            g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+            g.DrawImage(original, 0, 0, newWidth, newHeight);
+        }
+
+        if (ext == ".webp")
+        {
+            // System.Drawing can't save WebP — save temp PNG then use cwebp
+            var cwebp = _exe.Resolve("cwebp", _settings.Executables.Img2WebPPath);
+            if (cwebp == null) return false;
+
+            var tempPath = Path.Combine(Path.GetTempPath(), $"comprimer-{Guid.NewGuid():N}.png");
+            try
+            {
+                resized.Save(tempPath, ImageFormat.Png);
+                return _exe.Run(cwebp, $"-q 80 \"{tempPath}\" -o \"{outputPath}\"");
+            }
+            finally
+            {
+                try { File.Delete(tempPath); } catch { }
+            }
+        }
+
+        var format = ext == ".png" ? ImageFormat.Png : ImageFormat.Jpeg;
+        resized.Save(outputPath, format);
         return true;
     }
 
     /// <summary>
-    /// Convert an image to WebP format using img2webp/cwebp.
-    /// Falls back to ImageSharp if no external tool is available.
+    /// Convert an image to WebP format using cwebp.
     /// </summary>
     public bool ConvertToWebP(string inputPath)
     {
-        var outputPath = GetOutputPath(Path.ChangeExtension(inputPath, ".webp"), ConversionSuffix);
+        var outputPath = GetConversionOutputPath(inputPath, ".webp");
         var cwebp = _exe.Resolve("cwebp", _settings.Executables.Img2WebPPath);
 
-        if (cwebp != null)
-        {
-            return _exe.Run(cwebp, $"-q 80 \"{inputPath}\" -o \"{outputPath}\"");
-        }
+        if (cwebp == null)
+            return false;
 
-        // Fallback: use ImageSharp to save as WebP
-        using var image = Image.Load(inputPath);
-        image.SaveAsWebp(outputPath);
-        return true;
+        return _exe.Run(cwebp, $"-q 80 \"{inputPath}\" -o \"{outputPath}\"");
     }
 
     /// <summary>
-    /// Convert a PNG to JPEG using mozjpeg's cjpeg if available, otherwise ImageSharp.
+    /// Convert a PNG to JPEG using mozjpeg's cjpeg if available.
     /// </summary>
     public bool ConvertToJpg(string inputPath)
     {
-        var outputPath = GetOutputPath(Path.ChangeExtension(inputPath, ".jpg"), ConversionSuffix);
+        var outputPath = GetConversionOutputPath(inputPath, ".jpg");
         var cjpeg = _exe.Resolve("cjpeg", _settings.Executables.CjpegPath);
 
-        if (cjpeg != null)
-        {
-            return _exe.Run(cjpeg, $"-quality 85 -outfile \"{outputPath}\" \"{inputPath}\"");
-        }
+        if (cjpeg == null)
+            return false;
 
-        // Fallback: use ImageSharp
-        using var image = Image.Load(inputPath);
-        image.SaveAsJpeg(outputPath);
-        return true;
+        return _exe.Run(cjpeg, $"-quality 85 -outfile \"{outputPath}\" \"{inputPath}\"");
     }
 
     /// <summary>
@@ -91,22 +107,17 @@ public sealed class ImageService
         if (pngquant == null)
             return false;
 
-        var outputPath = _settings.OverwriteOriginal
-            ? inputPath
-            : GetOutputPath(inputPath, "-opt");
-
         if (_settings.OverwriteOriginal)
         {
             return _exe.Run(pngquant, $"--force --ext .png --quality=65-80 \"{inputPath}\"");
         }
-        else
-        {
-            return _exe.Run(pngquant, $"--quality=65-80 -o \"{outputPath}\" \"{inputPath}\"");
-        }
+
+        var outputPath = GetOutputPath(inputPath, "-opt");
+        return _exe.Run(pngquant, $"--quality=65-80 -o \"{outputPath}\" \"{inputPath}\"");
     }
 
     /// <summary>
-    /// Gets the output file path, respecting overwrite settings.
+    /// Gets the output file path for downscale operations.
     /// When not overwriting, appends a suffix and auto-increments to avoid collisions.
     /// </summary>
     internal string GetOutputPath(string inputPath, string suffix)
@@ -122,10 +133,35 @@ public sealed class ImageService
         if (!File.Exists(candidate))
             return candidate;
 
-        // Auto-increment: -1, -2, -3, ...
         for (int i = 1; i < MaxAutoIncrementRetries; i++)
         {
             candidate = Path.Combine(dir, $"{name}{suffix}-{i}{ext}");
+            if (!File.Exists(candidate))
+                return candidate;
+        }
+
+        return candidate;
+    }
+
+    /// <summary>
+    /// Gets the output file path for format conversion.
+    /// Tries the plain filename first, then adds -1, -2 only if it already exists.
+    /// </summary>
+    internal string GetConversionOutputPath(string inputPath, string newExtension)
+    {
+        if (_settings.OverwriteOriginal)
+            return Path.ChangeExtension(inputPath, newExtension);
+
+        var dir = Path.GetDirectoryName(inputPath) ?? ".";
+        var name = Path.GetFileNameWithoutExtension(inputPath);
+
+        var candidate = Path.Combine(dir, $"{name}{newExtension}");
+        if (!File.Exists(candidate))
+            return candidate;
+
+        for (int i = 1; i < MaxAutoIncrementRetries; i++)
+        {
+            candidate = Path.Combine(dir, $"{name}-{i}{newExtension}");
             if (!File.Exists(candidate))
                 return candidate;
         }

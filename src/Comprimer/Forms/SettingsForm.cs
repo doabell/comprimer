@@ -1,50 +1,65 @@
-using System.Diagnostics;
+using System.Drawing;
+using System.Drawing.Drawing2D;
 using Comprimer.Models;
 using Comprimer.Services;
 
 namespace Comprimer.Forms;
 
 /// <summary>
-/// Main settings window for Comprimer.
+/// Main settings window for Comprimer — modern single-page layout.
 /// </summary>
 public sealed class SettingsForm : Form
 {
+    // Colors
+    private static readonly Color BgColor = Color.FromArgb(250, 250, 250);
+    private static readonly Color CardColor = Color.White;
+    private static readonly Color AccentColor = Color.FromArgb(0, 120, 212);
+    private static readonly Color TextColor = Color.FromArgb(26, 26, 26);
+    private static readonly Color SecondaryText = Color.FromArgb(96, 96, 96);
+    private static readonly Color BorderColor = Color.FromArgb(228, 228, 228);
+    private static readonly Color SuccessColor = Color.FromArgb(16, 124, 16);
+    private static readonly Color ErrorColor = Color.FromArgb(209, 52, 56);
+
+    // Fonts
+    private static readonly Font TitleFont = new("Segoe UI", 18f, FontStyle.Bold);
+    private static readonly Font SubtitleFont = new("Segoe UI", 9.5f, FontStyle.Regular);
+    private static readonly Font SectionFont = new("Segoe UI", 10f, FontStyle.Bold);
+    private static readonly Font BodyFont = new("Segoe UI", 9.5f, FontStyle.Regular);
+    private static readonly Font SmallFont = new("Segoe UI", 8.5f, FontStyle.Regular);
+
     private readonly ConfigService _config;
     private readonly ExecutableService _exe;
     private readonly RegistryService _registry;
     private AppSettings _settings;
 
-    // Operations tab controls
+    // Context Menu section
+    private Label _lblInstallStatus = null!;
+    private Button _btnExplorer = null!;
     private CheckBox _chkNestedMenu = null!;
     private CheckBox _chkOverwrite = null!;
-    private NumericUpDown _nudDownscaleSize = null!;
-    private ListBox _lstSizes = null!;
-    private Button _btnAddSize = null!;
-    private Button _btnRemoveSize = null!;
 
-    // JPG
+    // Downscale sizes
+    private FlowLayoutPanel _sizesPanel = null!;
+    private NumericUpDown _nudSize = null!;
+
+    // Format operations
     private CheckBox _chkJpgDownscale = null!;
     private CheckBox _chkJpgToWebP = null!;
-
-    // PNG
     private CheckBox _chkPngDownscale = null!;
     private CheckBox _chkPngToWebP = null!;
     private CheckBox _chkPngToJpg = null!;
-
-    // WebP
     private CheckBox _chkWebPDownscale = null!;
 
-    // Executables tab controls
+    // Executables
     private Label _lblPngquantStatus = null!;
     private TextBox _txtPngquantPath = null!;
-    private Label _lblImg2WebPStatus = null!;
-    private TextBox _txtImg2WebPPath = null!;
+    private Button _btnBrowsePngquant = null!;
+    private Label _lblCwebpStatus = null!;
+    private TextBox _txtCwebpPath = null!;
+    private Button _btnBrowseCwebp = null!;
     private Label _lblCjpegStatus = null!;
     private TextBox _txtCjpegPath = null!;
-
-    // Explorer buttons
-    private Button _btnAddToExplorer = null!;
-    private Button _btnRemoveFromExplorer = null!;
+    private Button _btnBrowseCjpeg = null!;
 
     public SettingsForm()
     {
@@ -55,173 +70,286 @@ public sealed class SettingsForm : Form
 
         InitializeComponent();
         LoadSettings();
-        RefreshExecutableStatus();
+        RefreshStatus();
     }
 
     private void InitializeComponent()
     {
-        Text = "Comprimer Settings";
-        Size = new Size(520, 580);
-        MinimumSize = new Size(480, 540);
+        Text = "Comprimer";
+        Size = new Size(500, 680);
+        MinimumSize = new Size(480, 600);
         StartPosition = FormStartPosition.CenterScreen;
-        FormBorderStyle = FormBorderStyle.FixedDialog;
+        FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
+        BackColor = BgColor;
 
-        var tabControl = new TabControl
+        var scroll = new Panel
         {
             Dock = DockStyle.Fill,
-            Padding = new Point(8, 4),
+            AutoScroll = true,
+            Padding = new Padding(24, 16, 24, 16),
         };
 
-        tabControl.TabPages.Add(CreateOperationsTab());
-        tabControl.TabPages.Add(CreateExecutablesTab());
+        int y = 16;
 
-        // Bottom panel with explorer buttons
-        var bottomPanel = new Panel
+        // Title
+        var lblTitle = new Label
         {
-            Dock = DockStyle.Bottom,
-            Height = 60,
-            Padding = new Padding(12, 8, 12, 8),
+            Text = "Comprimer",
+            Font = TitleFont,
+            ForeColor = TextColor,
+            AutoSize = true,
+            Location = new Point(24, y),
         };
+        scroll.Controls.Add(lblTitle);
+        y += 36;
 
-        _btnAddToExplorer = new Button
+        var lblSubtitle = new Label
         {
-            Text = "Add to Explorer",
-            Size = new Size(140, 36),
-            Location = new Point(12, 12),
-            FlatStyle = FlatStyle.System,
+            Text = "Image compression & conversion for Windows Explorer",
+            Font = SubtitleFont,
+            ForeColor = SecondaryText,
+            AutoSize = true,
+            Location = new Point(26, y),
         };
-        _btnAddToExplorer.Click += BtnAddToExplorer_Click;
+        scroll.Controls.Add(lblSubtitle);
+        y += 32;
 
-        _btnRemoveFromExplorer = new Button
+        // — Context Menu Card —
+        y = AddSectionHeader(scroll, "CONTEXT MENU", y);
+        var cardCtx = CreateCard(scroll, ref y, 120);
+
+        _lblInstallStatus = new Label
         {
-            Text = "Remove from Explorer",
-            Size = new Size(160, 36),
-            Location = new Point(164, 12),
-            FlatStyle = FlatStyle.System,
+            Font = BodyFont,
+            AutoSize = true,
+            Location = new Point(16, 14),
         };
-        _btnRemoveFromExplorer.Click += BtnRemoveFromExplorer_Click;
+        cardCtx.Controls.Add(_lblInstallStatus);
 
-        var btnSave = new Button
+        _btnExplorer = new Button
         {
-            Text = "Save",
-            Size = new Size(80, 36),
-            Location = new Point(400, 12),
-            FlatStyle = FlatStyle.System,
+            Font = BodyFont,
+            Size = new Size(200, 32),
+            Location = new Point(16, 40),
+            FlatStyle = FlatStyle.Flat,
+            ForeColor = Color.White,
+            BackColor = AccentColor,
+            Cursor = Cursors.Hand,
         };
-        btnSave.Click += BtnSave_Click;
+        _btnExplorer.FlatAppearance.BorderSize = 0;
+        _btnExplorer.Click += BtnExplorer_Click;
+        cardCtx.Controls.Add(_btnExplorer);
 
-        bottomPanel.Controls.AddRange([_btnAddToExplorer, _btnRemoveFromExplorer, btnSave]);
+        _chkNestedMenu = CreateCheckBox("Use nested submenu", 16, 82);
+        _chkOverwrite = CreateCheckBox("Overwrite original files", 220, 82);
+        cardCtx.Controls.AddRange([_chkNestedMenu, _chkOverwrite]);
 
-        Controls.Add(tabControl);
-        Controls.Add(bottomPanel);
-    }
+        // — Downscale Sizes Card —
+        y = AddSectionHeader(scroll, "DOWNSCALE SIZES", y);
+        var cardSizes = CreateCard(scroll, ref y, 72);
 
-    private TabPage CreateOperationsTab()
-    {
-        var tab = new TabPage("Operations") { Padding = new Padding(12) };
-        var panel = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
-
-        int y = 8;
-
-        // Menu style
-        var grpMenu = CreateGroupBox("Menu Style", 8, ref y, 460, 80);
-        _chkNestedMenu = new CheckBox { Text = "Nested submenu (under \"Comprimer\")", Location = new Point(16, 24), AutoSize = true };
-        _chkOverwrite = new CheckBox { Text = "Overwrite original file (no suffix)", Location = new Point(16, 48), AutoSize = true };
-        grpMenu.Controls.AddRange([_chkNestedMenu, _chkOverwrite]);
-        panel.Controls.Add(grpMenu);
-
-        // Downscale sizes
-        var grpSizes = CreateGroupBox("Downscale Sizes", 8, ref y, 460, 100);
-        _lstSizes = new ListBox { Location = new Point(16, 24), Size = new Size(180, 60) };
-        _nudDownscaleSize = new NumericUpDown
+        _sizesPanel = new FlowLayoutPanel
         {
-            Location = new Point(210, 24),
-            Size = new Size(80, 28),
+            Location = new Point(12, 10),
+            Size = new Size(300, 50),
+            FlowDirection = FlowDirection.LeftToRight,
+            AutoSize = false,
+            WrapContents = true,
+        };
+        cardSizes.Controls.Add(_sizesPanel);
+
+        _nudSize = new NumericUpDown
+        {
+            Font = BodyFont,
+            Location = new Point(320, 12),
+            Size = new Size(70, 28),
             Minimum = 100,
             Maximum = 10000,
             Value = 1000,
+            BorderStyle = BorderStyle.FixedSingle,
         };
-        _btnAddSize = new Button { Text = "Add", Location = new Point(300, 23), Size = new Size(60, 28), FlatStyle = FlatStyle.System };
-        _btnAddSize.Click += BtnAddSize_Click;
-        _btnRemoveSize = new Button { Text = "Remove", Location = new Point(370, 23), Size = new Size(70, 28), FlatStyle = FlatStyle.System };
-        _btnRemoveSize.Click += BtnRemoveSize_Click;
-        grpSizes.Controls.AddRange([_lstSizes, _nudDownscaleSize, _btnAddSize, _btnRemoveSize]);
-        panel.Controls.Add(grpSizes);
+        cardSizes.Controls.Add(_nudSize);
 
-        // JPG/JPEG
-        var grpJpg = CreateGroupBox("JPG / JPEG", 8, ref y, 460, 80);
-        _chkJpgDownscale = new CheckBox { Text = "Downscale", Location = new Point(16, 24), AutoSize = true };
-        _chkJpgToWebP = new CheckBox { Text = "Convert to WebP", Location = new Point(16, 48), AutoSize = true };
-        grpJpg.Controls.AddRange([_chkJpgDownscale, _chkJpgToWebP]);
-        panel.Controls.Add(grpJpg);
+        var btnAdd = new Button
+        {
+            Text = "+",
+            Font = new Font("Segoe UI", 10f, FontStyle.Bold),
+            Location = new Point(394, 10),
+            Size = new Size(32, 30),
+            FlatStyle = FlatStyle.Flat,
+            ForeColor = AccentColor,
+            BackColor = CardColor,
+            Cursor = Cursors.Hand,
+        };
+        btnAdd.FlatAppearance.BorderColor = AccentColor;
+        btnAdd.Click += BtnAddSize_Click;
+        cardSizes.Controls.Add(btnAdd);
 
-        // PNG
-        var grpPng = CreateGroupBox("PNG", 8, ref y, 460, 104);
-        _chkPngDownscale = new CheckBox { Text = "Downscale", Location = new Point(16, 24), AutoSize = true };
-        _chkPngToWebP = new CheckBox { Text = "Convert to WebP", Location = new Point(16, 48), AutoSize = true };
-        _chkPngToJpg = new CheckBox { Text = "Convert to JPG (mozjpeg)", Location = new Point(16, 72), AutoSize = true };
-        grpPng.Controls.AddRange([_chkPngDownscale, _chkPngToWebP, _chkPngToJpg]);
-        panel.Controls.Add(grpPng);
+        // — Operations Card —
+        y = AddSectionHeader(scroll, "OPERATIONS", y);
+        var cardOps = CreateCard(scroll, ref y, 152);
 
-        // WebP
-        var grpWebP = CreateGroupBox("WebP", 8, ref y, 460, 56);
-        _chkWebPDownscale = new CheckBox { Text = "Downscale", Location = new Point(16, 24), AutoSize = true };
-        grpWebP.Controls.Add(_chkWebPDownscale);
-        panel.Controls.Add(grpWebP);
+        int opY = 12;
+        AddFormatRow(cardOps, "JPG / JPEG", ref opY, out _chkJpgDownscale, out _chkJpgToWebP, out _);
+        AddFormatRow(cardOps, "PNG", ref opY, out _chkPngDownscale, out _chkPngToWebP, out _chkPngToJpg);
+        AddFormatRow(cardOps, "WebP", ref opY, out _chkWebPDownscale, out _, out _);
 
-        tab.Controls.Add(panel);
-        return tab;
+        // — External Tools Card —
+        y = AddSectionHeader(scroll, "EXTERNAL TOOLS", y);
+        var cardTools = CreateCard(scroll, ref y, 138);
+
+        int toolY = 12;
+        AddToolRow(cardTools, "pngquant", ref toolY, out _lblPngquantStatus, out _txtPngquantPath, out _btnBrowsePngquant);
+        AddToolRow(cardTools, "cwebp", ref toolY, out _lblCwebpStatus, out _txtCwebpPath, out _btnBrowseCwebp);
+        AddToolRow(cardTools, "cjpeg", ref toolY, out _lblCjpegStatus, out _txtCjpegPath, out _btnBrowseCjpeg);
+
+        Controls.Add(scroll);
     }
 
-    private TabPage CreateExecutablesTab()
+    private int AddSectionHeader(Control parent, string title, int y)
     {
-        var tab = new TabPage("Executables") { Padding = new Padding(12) };
-        var panel = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
-
-        int y = 8;
-
-        // pngquant
-        var grpPngquant = CreateGroupBox("pngquant", 8, ref y, 460, 80);
-        _lblPngquantStatus = new Label { Location = new Point(16, 28), AutoSize = true };
-        _txtPngquantPath = new TextBox { Location = new Point(16, 50), Size = new Size(340, 24) };
-        var btnBrowsePngquant = new Button { Text = "...", Location = new Point(366, 49), Size = new Size(36, 26), FlatStyle = FlatStyle.System };
-        btnBrowsePngquant.Click += (_, _) => BrowseExecutable(_txtPngquantPath);
-        grpPngquant.Controls.AddRange([_lblPngquantStatus, _txtPngquantPath, btnBrowsePngquant]);
-        panel.Controls.Add(grpPngquant);
-
-        // img2webp / cwebp
-        var grpImg2WebP = CreateGroupBox("img2webp / cwebp", 8, ref y, 460, 80);
-        _lblImg2WebPStatus = new Label { Location = new Point(16, 28), AutoSize = true };
-        _txtImg2WebPPath = new TextBox { Location = new Point(16, 50), Size = new Size(340, 24) };
-        var btnBrowseImg2WebP = new Button { Text = "...", Location = new Point(366, 49), Size = new Size(36, 26), FlatStyle = FlatStyle.System };
-        btnBrowseImg2WebP.Click += (_, _) => BrowseExecutable(_txtImg2WebPPath);
-        grpImg2WebP.Controls.AddRange([_lblImg2WebPStatus, _txtImg2WebPPath, btnBrowseImg2WebP]);
-        panel.Controls.Add(grpImg2WebP);
-
-        // cjpeg (mozjpeg)
-        var grpCjpeg = CreateGroupBox("cjpeg (mozjpeg)", 8, ref y, 460, 80);
-        _lblCjpegStatus = new Label { Location = new Point(16, 28), AutoSize = true };
-        _txtCjpegPath = new TextBox { Location = new Point(16, 50), Size = new Size(340, 24) };
-        var btnBrowseCjpeg = new Button { Text = "...", Location = new Point(366, 49), Size = new Size(36, 26), FlatStyle = FlatStyle.System };
-        btnBrowseCjpeg.Click += (_, _) => BrowseExecutable(_txtCjpegPath);
-        grpCjpeg.Controls.AddRange([_lblCjpegStatus, _txtCjpegPath, btnBrowseCjpeg]);
-        panel.Controls.Add(grpCjpeg);
-
-        tab.Controls.Add(panel);
-        return tab;
-    }
-
-    private static GroupBox CreateGroupBox(string title, int x, ref int y, int width, int height)
-    {
-        var grp = new GroupBox
+        y += 8;
+        var lbl = new Label
         {
             Text = title,
-            Location = new Point(x, y),
-            Size = new Size(width, height),
+            Font = SectionFont,
+            ForeColor = SecondaryText,
+            AutoSize = true,
+            Location = new Point(28, y),
         };
+        parent.Controls.Add(lbl);
+        return y + 22;
+    }
+
+    private Panel CreateCard(Control parent, ref int y, int height)
+    {
+        var card = new RoundedPanel
+        {
+            Location = new Point(24, y),
+            Size = new Size(430, height),
+            BackColor = CardColor,
+            BorderColor = BorderColor,
+        };
+        parent.Controls.Add(card);
         y += height + 8;
-        return grp;
+        return card;
+    }
+
+    private CheckBox CreateCheckBox(string text, int x, int y)
+    {
+        return new CheckBox
+        {
+            Text = text,
+            Font = SmallFont,
+            ForeColor = TextColor,
+            AutoSize = true,
+            Location = new Point(x, y),
+        };
+    }
+
+    private void AddFormatRow(Control parent, string format, ref int y, out CheckBox chkDown, out CheckBox chkWebP, out CheckBox chkJpg)
+    {
+        var lblFmt = new Label
+        {
+            Text = format,
+            Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+            ForeColor = TextColor,
+            Size = new Size(80, 20),
+            Location = new Point(16, y + 2),
+        };
+        parent.Controls.Add(lblFmt);
+
+        chkDown = new CheckBox
+        {
+            Text = "Downscale",
+            Font = SmallFont,
+            ForeColor = TextColor,
+            AutoSize = true,
+            Location = new Point(100, y),
+        };
+        parent.Controls.Add(chkDown);
+
+        chkWebP = null!;
+        chkJpg = null!;
+
+        if (format != "WebP")
+        {
+            chkWebP = new CheckBox
+            {
+                Text = "→ WebP",
+                Font = SmallFont,
+                ForeColor = TextColor,
+                AutoSize = true,
+                Location = new Point(210, y),
+            };
+            parent.Controls.Add(chkWebP);
+        }
+
+        if (format == "PNG")
+        {
+            chkJpg = new CheckBox
+            {
+                Text = "→ JPG",
+                Font = SmallFont,
+                ForeColor = TextColor,
+                AutoSize = true,
+                Location = new Point(310, y),
+            };
+            parent.Controls.Add(chkJpg);
+        }
+
+        y += 40;
+    }
+
+    private void AddToolRow(Control parent, string name, ref int y, out Label status, out TextBox pathBox, out Button browse)
+    {
+        var lbl = new Label
+        {
+            Text = name,
+            Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+            ForeColor = TextColor,
+            Size = new Size(70, 20),
+            Location = new Point(16, y + 2),
+        };
+        parent.Controls.Add(lbl);
+
+        status = new Label
+        {
+            Font = SmallFont,
+            AutoSize = true,
+            Location = new Point(90, y + 3),
+        };
+        parent.Controls.Add(status);
+
+        pathBox = new TextBox
+        {
+            Font = SmallFont,
+            Size = new Size(200, 24),
+            Location = new Point(200, y),
+            BorderStyle = BorderStyle.FixedSingle,
+            Visible = false,
+        };
+        parent.Controls.Add(pathBox);
+
+        browse = new Button
+        {
+            Text = "Browse…",
+            Font = SmallFont,
+            Size = new Size(64, 24),
+            Location = new Point(350, y),
+            FlatStyle = FlatStyle.Flat,
+            ForeColor = AccentColor,
+            BackColor = CardColor,
+            Cursor = Cursors.Hand,
+            Visible = false,
+        };
+        browse.FlatAppearance.BorderColor = BorderColor;
+        var target = pathBox;
+        browse.Click += (_, _) => BrowseExecutable(target);
+        parent.Controls.Add(browse);
+
+        y += 38;
     }
 
     private void LoadSettings()
@@ -229,21 +357,19 @@ public sealed class SettingsForm : Form
         _chkNestedMenu.Checked = _settings.NestedMenu;
         _chkOverwrite.Checked = _settings.OverwriteOriginal;
 
-        _lstSizes.Items.Clear();
-        foreach (var size in _settings.AvailableSizes)
-            _lstSizes.Items.Add($"{size}px");
+        RefreshSizeTags();
 
         _chkJpgDownscale.Checked = _settings.Jpg.Downscale;
-        _chkJpgToWebP.Checked = _settings.Jpg.ConvertToWebP;
+        if (_chkJpgToWebP != null) _chkJpgToWebP.Checked = _settings.Jpg.ConvertToWebP;
 
         _chkPngDownscale.Checked = _settings.Png.Downscale;
-        _chkPngToWebP.Checked = _settings.Png.ConvertToWebP;
-        _chkPngToJpg.Checked = _settings.Png.ConvertToJpg;
+        if (_chkPngToWebP != null) _chkPngToWebP.Checked = _settings.Png.ConvertToWebP;
+        if (_chkPngToJpg != null) _chkPngToJpg.Checked = _settings.Png.ConvertToJpg;
 
         _chkWebPDownscale.Checked = _settings.WebP.Downscale;
 
         _txtPngquantPath.Text = _settings.Executables.PngquantPath ?? "";
-        _txtImg2WebPPath.Text = _settings.Executables.Img2WebPPath ?? "";
+        _txtCwebpPath.Text = _settings.Executables.Img2WebPPath ?? "";
         _txtCjpegPath.Text = _settings.Executables.CjpegPath ?? "";
     }
 
@@ -253,29 +379,28 @@ public sealed class SettingsForm : Form
         _settings.OverwriteOriginal = _chkOverwrite.Checked;
 
         _settings.AvailableSizes.Clear();
-        foreach (var item in _lstSizes.Items)
+        foreach (Control c in _sizesPanel.Controls)
         {
-            var text = item.ToString()!.Replace("px", "");
-            if (int.TryParse(text, out var size))
-                _settings.AvailableSizes.Add(size);
+            if (c is SizeTag tag)
+                _settings.AvailableSizes.Add(tag.SizeValue);
         }
         if (_settings.AvailableSizes.Count == 0)
             _settings.AvailableSizes.Add(1000);
 
         _settings.Jpg.Downscale = _chkJpgDownscale.Checked;
-        _settings.Jpg.ConvertToWebP = _chkJpgToWebP.Checked;
+        _settings.Jpg.ConvertToWebP = _chkJpgToWebP?.Checked ?? false;
 
         _settings.Png.Downscale = _chkPngDownscale.Checked;
-        _settings.Png.ConvertToWebP = _chkPngToWebP.Checked;
-        _settings.Png.ConvertToJpg = _chkPngToJpg.Checked;
+        _settings.Png.ConvertToWebP = _chkPngToWebP?.Checked ?? false;
+        _settings.Png.ConvertToJpg = _chkPngToJpg?.Checked ?? false;
 
         _settings.WebP.Downscale = _chkWebPDownscale.Checked;
 
         var pngquantPath = _txtPngquantPath.Text.Trim();
         _settings.Executables.PngquantPath = pngquantPath.Length > 0 ? pngquantPath : null;
 
-        var img2webpPath = _txtImg2WebPPath.Text.Trim();
-        _settings.Executables.Img2WebPPath = img2webpPath.Length > 0 ? img2webpPath : null;
+        var cwebpPath = _txtCwebpPath.Text.Trim();
+        _settings.Executables.Img2WebPPath = cwebpPath.Length > 0 ? cwebpPath : null;
 
         var cjpegPath = _txtCjpegPath.Text.Trim();
         _settings.Executables.CjpegPath = cjpegPath.Length > 0 ? cjpegPath : null;
@@ -283,37 +408,61 @@ public sealed class SettingsForm : Form
         _config.Save(_settings);
     }
 
-    private void RefreshExecutableStatus()
+    private void RefreshStatus()
     {
-        SetExecutableStatus(_lblPngquantStatus, _txtPngquantPath, "pngquant",
-            _settings.Executables.PngquantPath);
-        SetExecutableStatus(_lblImg2WebPStatus, _txtImg2WebPPath, "cwebp",
-            _settings.Executables.Img2WebPPath);
-        SetExecutableStatus(_lblCjpegStatus, _txtCjpegPath, "cjpeg",
-            _settings.Executables.CjpegPath);
+        var installed = _registry.IsRegistered();
+        _lblInstallStatus.Text = installed ? "●  Installed in Explorer" : "○  Not installed";
+        _lblInstallStatus.ForeColor = installed ? SuccessColor : SecondaryText;
+        _btnExplorer.Text = installed ? "Remove from Explorer" : "Add to Explorer";
+        _btnExplorer.BackColor = installed ? Color.FromArgb(220, 220, 220) : AccentColor;
+        _btnExplorer.ForeColor = installed ? TextColor : Color.White;
+
+        RefreshToolStatus(_lblPngquantStatus, _txtPngquantPath, _btnBrowsePngquant, "pngquant", _settings.Executables.PngquantPath);
+        RefreshToolStatus(_lblCwebpStatus, _txtCwebpPath, _btnBrowseCwebp, "cwebp", _settings.Executables.Img2WebPPath);
+        RefreshToolStatus(_lblCjpegStatus, _txtCjpegPath, _btnBrowseCjpeg, "cjpeg", _settings.Executables.CjpegPath);
     }
 
-    private void SetExecutableStatus(Label statusLabel, TextBox pathBox, string exeName, string? configuredPath)
+    private void RefreshToolStatus(Label status, TextBox pathBox, Button browse, string exeName, string? configuredPath)
     {
         if (!string.IsNullOrWhiteSpace(configuredPath) && File.Exists(configuredPath))
         {
-            statusLabel.Text = "✓ Custom path configured";
-            statusLabel.ForeColor = Color.Green;
-            pathBox.Enabled = true;
+            status.Text = "✓ Custom path set";
+            status.ForeColor = SuccessColor;
+            pathBox.Visible = false;
+            browse.Visible = false;
         }
         else if (_exe.IsInPath(exeName))
         {
-            statusLabel.Text = "✓ Detected in PATH";
-            statusLabel.ForeColor = Color.Green;
-            pathBox.Enabled = false;
-            pathBox.Text = "Detected in PATH";
+            status.Text = "✓ Found in PATH";
+            status.ForeColor = SuccessColor;
+            pathBox.Visible = false;
+            browse.Visible = false;
         }
         else
         {
-            statusLabel.Text = "✗ Not found — enter path below";
-            statusLabel.ForeColor = Color.Red;
-            pathBox.Enabled = true;
+            status.Text = "✗ Not found";
+            status.ForeColor = ErrorColor;
+            pathBox.Visible = true;
+            browse.Visible = true;
         }
+    }
+
+    private void RefreshSizeTags()
+    {
+        _sizesPanel.Controls.Clear();
+        foreach (var size in _settings.AvailableSizes)
+            AddSizeTag(size);
+    }
+
+    private void AddSizeTag(int size)
+    {
+        var tag = new SizeTag(size, SmallFont, AccentColor, BorderColor);
+        tag.RemoveClicked += (_, _) =>
+        {
+            _sizesPanel.Controls.Remove(tag);
+            tag.Dispose();
+        };
+        _sizesPanel.Controls.Add(tag);
     }
 
     private void BrowseExecutable(TextBox targetBox)
@@ -331,42 +480,117 @@ public sealed class SettingsForm : Form
 
     private void BtnAddSize_Click(object? sender, EventArgs e)
     {
-        var size = (int)_nudDownscaleSize.Value;
-        var label = $"{size}px";
-        if (!_lstSizes.Items.Contains(label))
+        var size = (int)_nudSize.Value;
+        // Don't add duplicates
+        foreach (Control c in _sizesPanel.Controls)
+            if (c is SizeTag t && t.SizeValue == size) return;
+        AddSizeTag(size);
+    }
+
+    private void BtnExplorer_Click(object? sender, EventArgs e)
+    {
+        var installed = _registry.IsRegistered();
+        if (installed)
         {
-            _lstSizes.Items.Add(label);
+            _registry.Unregister();
+        }
+        else
+        {
+            SaveSettings();
+            _registry.Register(_settings, Application.ExecutablePath);
+        }
+        RefreshStatus();
+    }
+
+    protected override void OnFormClosing(FormClosingEventArgs e)
+    {
+        SaveSettings();
+        base.OnFormClosing(e);
+    }
+
+    /// <summary>
+    /// Custom panel with rounded corners and border.
+    /// </summary>
+    private sealed class RoundedPanel : Panel
+    {
+        public Color BorderColor { get; set; } = Color.FromArgb(228, 228, 228);
+        private const int Radius = 8;
+
+        public RoundedPanel()
+        {
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+
+            var rect = new Rectangle(0, 0, Width - 1, Height - 1);
+            using var path = GetRoundedPath(rect, Radius);
+            using var brush = new SolidBrush(BackColor);
+            using var pen = new Pen(BorderColor, 1f);
+
+            g.FillPath(brush, path);
+            g.DrawPath(pen, path);
+        }
+
+        private static GraphicsPath GetRoundedPath(Rectangle rect, int radius)
+        {
+            var path = new GraphicsPath();
+            var d = radius * 2;
+            path.AddArc(rect.X, rect.Y, d, d, 180, 90);
+            path.AddArc(rect.Right - d, rect.Y, d, d, 270, 90);
+            path.AddArc(rect.Right - d, rect.Bottom - d, d, d, 0, 90);
+            path.AddArc(rect.X, rect.Bottom - d, d, d, 90, 90);
+            path.CloseFigure();
+            return path;
         }
     }
 
-    private void BtnRemoveSize_Click(object? sender, EventArgs e)
+    /// <summary>
+    /// A removable size tag chip (e.g. "1000px ×").
+    /// </summary>
+    private sealed class SizeTag : UserControl
     {
-        if (_lstSizes.SelectedIndex >= 0)
-            _lstSizes.Items.RemoveAt(_lstSizes.SelectedIndex);
-    }
+        public int SizeValue { get; }
+        public event EventHandler? RemoveClicked;
 
-    private void BtnSave_Click(object? sender, EventArgs e)
-    {
-        SaveSettings();
-        RefreshExecutableStatus();
-        MessageBox.Show("Settings saved.", "Comprimer", MessageBoxButtons.OK, MessageBoxIcon.Information);
-    }
+        public SizeTag(int size, Font font, Color accent, Color border)
+        {
+            SizeValue = size;
+            Size = new Size(86, 26);
+            Margin = new Padding(2);
+            BackColor = Color.FromArgb(240, 247, 255);
+            Cursor = Cursors.Default;
 
-    private void BtnAddToExplorer_Click(object? sender, EventArgs e)
-    {
-        SaveSettings();
-        var exePath = Application.ExecutablePath;
-        _registry.Register(_settings, exePath);
-        MessageBox.Show(
-            "Context menu entries added to Explorer.\nYou may need to restart Explorer for changes to take effect.",
-            "Comprimer", MessageBoxButtons.OK, MessageBoxIcon.Information);
-    }
+            var lbl = new Label
+            {
+                Text = $"{size}px",
+                Font = font,
+                ForeColor = accent,
+                AutoSize = false,
+                Size = new Size(56, 20),
+                Location = new Point(6, 3),
+                TextAlign = ContentAlignment.MiddleLeft,
+            };
+            Controls.Add(lbl);
 
-    private void BtnRemoveFromExplorer_Click(object? sender, EventArgs e)
-    {
-        _registry.Unregister();
-        MessageBox.Show(
-            "Context menu entries removed from Explorer.",
-            "Comprimer", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            var btn = new Label
+            {
+                Text = "×",
+                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(160, 160, 160),
+                AutoSize = false,
+                Size = new Size(20, 20),
+                Location = new Point(62, 3),
+                TextAlign = ContentAlignment.MiddleCenter,
+                Cursor = Cursors.Hand,
+            };
+            btn.Click += (_, _) => RemoveClicked?.Invoke(this, EventArgs.Empty);
+            btn.MouseEnter += (_, _) => btn.ForeColor = Color.FromArgb(209, 52, 56);
+            btn.MouseLeave += (_, _) => btn.ForeColor = Color.FromArgb(160, 160, 160);
+            Controls.Add(btn);
+        }
     }
 }

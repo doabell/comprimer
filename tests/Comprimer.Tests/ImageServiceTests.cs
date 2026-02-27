@@ -25,7 +25,6 @@ public class ImageServiceTests
         var exe = new ExecutableService();
         var service = new ImageService(exe, settings);
 
-        // Use a non-existent directory so the first candidate is always free
         var dir = Path.Combine(Path.GetTempPath(), $"comprimer-test-{Guid.NewGuid():N}");
         var input = Path.Combine(dir, "image.png");
         var expected = Path.Combine(dir, "image-1000px.png");
@@ -50,17 +49,32 @@ public class ImageServiceTests
     }
 
     [Fact]
-    public void GetOutputPath_AppendsConvertSuffix_WhenOverwriteDisabled()
+    public void GetConversionOutputPath_UsesPlainName_WhenNoCollision()
     {
         var settings = new AppSettings { OverwriteOriginal = false };
         var exe = new ExecutableService();
         var service = new ImageService(exe, settings);
 
         var dir = Path.Combine(Path.GetTempPath(), $"comprimer-test-{Guid.NewGuid():N}");
-        var input = Path.Combine(dir, "photo.webp");
-        var expected = Path.Combine(dir, "photo-1.webp");
+        var input = Path.Combine(dir, "photo.png");
+        var expected = Path.Combine(dir, "photo.webp");
 
-        var result = service.GetOutputPath(input, "-1");
+        var result = service.GetConversionOutputPath(input, ".webp");
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void GetConversionOutputPath_ReturnsChangedExtension_WhenOverwrite()
+    {
+        var settings = new AppSettings { OverwriteOriginal = true };
+        var exe = new ExecutableService();
+        var service = new ImageService(exe, settings);
+
+        var dir = Path.Combine(Path.GetTempPath(), $"comprimer-test-{Guid.NewGuid():N}");
+        var input = Path.Combine(dir, "photo.png");
+        var expected = Path.Combine(dir, "photo.webp");
+
+        var result = service.GetConversionOutputPath(input, ".webp");
         Assert.Equal(expected, result);
     }
 }

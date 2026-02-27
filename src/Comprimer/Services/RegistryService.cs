@@ -12,18 +12,25 @@ public sealed class RegistryService
     private const string MenuName = "Comprimer";
 
     private const string CheckedPrefix = "✓ ";
-    private const string UncheckedPrefix = "   "; // spacing to visually align with checked items
+    private const string UncheckedPrefix = "   ";
 
     private static readonly string[] JpgExtensions = [".jpg", ".jpeg"];
     private static readonly string[] PngExtensions = [".png"];
     private static readonly string[] WebPExtensions = [".webp"];
+
+    // System icons from imageres.dll
+    private static readonly string SystemIconDir = Environment.GetFolderPath(Environment.SpecialFolder.System);
+    private static readonly string ImageresPath = Path.Combine(SystemIconDir, "imageres.dll");
+    private static readonly string MenuIcon = $"{ImageresPath},-70";       // photo/image icon
+    private static readonly string DownscaleIcon = $"{ImageresPath},-5306"; // resize icon
+    private static readonly string ConvertIcon = $"{ImageresPath},-5381";   // convert/save-as icon
 
     /// <summary>
     /// Registers context menu entries for all enabled formats and operations.
     /// </summary>
     public void Register(AppSettings settings, string exePath)
     {
-        Unregister(); // Clean slate
+        Unregister();
 
         var allEntries = BuildMenuEntries(settings);
 
@@ -53,10 +60,8 @@ public sealed class RegistryService
                 using var shellKey = Registry.CurrentUser.OpenSubKey(shellPath, writable: true);
                 if (shellKey == null) continue;
 
-                // Remove nested menu
                 DeleteSubKeyTreeSafe(shellKey, MenuName);
 
-                // Remove flat entries
                 foreach (var subName in shellKey.GetSubKeyNames())
                 {
                     if (subName.StartsWith($"{MenuName}.", StringComparison.OrdinalIgnoreCase))
@@ -79,7 +84,6 @@ public sealed class RegistryService
         using var key = Registry.CurrentUser.OpenSubKey(testPath);
         if (key != null) return true;
 
-        // Check flat entries
         var shellPath = $@"{BaseKeyPath}\.jpg\shell";
         using var shellKey = Registry.CurrentUser.OpenSubKey(shellPath);
         if (shellKey == null) return false;
@@ -91,7 +95,6 @@ public sealed class RegistryService
     {
         var entries = new List<MenuEntry>();
 
-        // JPG/JPEG operations
         if (settings.Jpg.Downscale)
         {
             foreach (var size in settings.AvailableSizes)
@@ -102,7 +105,7 @@ public sealed class RegistryService
                     Label = $"Downscale to {size}px",
                     Command = $"--downscale {size}",
                     Extensions = JpgExtensions,
-                    IconIndex = 1,
+                    Icon = DownscaleIcon,
                 });
             }
         }
@@ -114,11 +117,10 @@ public sealed class RegistryService
                 Label = "Convert to WebP",
                 Command = "--to-webp",
                 Extensions = JpgExtensions,
-                IconIndex = 2,
+                Icon = ConvertIcon,
             });
         }
 
-        // PNG operations
         if (settings.Png.Downscale)
         {
             foreach (var size in settings.AvailableSizes)
@@ -129,7 +131,7 @@ public sealed class RegistryService
                     Label = $"Downscale to {size}px",
                     Command = $"--downscale {size}",
                     Extensions = PngExtensions,
-                    IconIndex = 1,
+                    Icon = DownscaleIcon,
                 });
             }
         }
@@ -141,7 +143,7 @@ public sealed class RegistryService
                 Label = "Convert to WebP",
                 Command = "--to-webp",
                 Extensions = PngExtensions,
-                IconIndex = 2,
+                Icon = ConvertIcon,
             });
         }
         if (settings.Png.ConvertToJpg)
@@ -152,11 +154,10 @@ public sealed class RegistryService
                 Label = "Convert to JPG (mozjpeg)",
                 Command = "--to-jpg",
                 Extensions = PngExtensions,
-                IconIndex = 3,
+                Icon = ConvertIcon,
             });
         }
 
-        // WebP operations
         if (settings.WebP.Downscale)
         {
             foreach (var size in settings.AvailableSizes)
@@ -167,7 +168,7 @@ public sealed class RegistryService
                     Label = $"Downscale to {size}px",
                     Command = $"--downscale {size}",
                     Extensions = WebPExtensions,
-                    IconIndex = 1,
+                    Icon = DownscaleIcon,
                 });
             }
         }
@@ -180,12 +181,11 @@ public sealed class RegistryService
         var menuPath = $@"{BaseKeyPath}\{ext}\shell\{MenuName}";
         using var menuKey = Registry.CurrentUser.CreateSubKey(menuPath);
         menuKey.SetValue("MUIVerb", MenuName);
-        menuKey.SetValue("Icon", $"\"{exePath}\",0");
+        menuKey.SetValue("Icon", MenuIcon);
         menuKey.SetValue("SubCommands", "");
 
         var shellPath = $@"{menuPath}\shell";
 
-        // Add overwrite toggle
         var owPath = $@"{shellPath}\OverwriteToggle";
         using (var owKey = Registry.CurrentUser.CreateSubKey(owPath))
         {
@@ -196,7 +196,6 @@ public sealed class RegistryService
             owCmd.SetValue("", $"\"{exePath}\" --toggle-overwrite \"%1\"");
         }
 
-        // Add separator after toggle
         var sepPath = $@"{shellPath}\Sep1";
         using (var sepKey = Registry.CurrentUser.CreateSubKey(sepPath))
         {
@@ -204,12 +203,11 @@ public sealed class RegistryService
             sepKey.SetValue("MUIVerb", "");
         }
 
-        // Add operation entry
         var entryPath = $@"{shellPath}\{entry.Id}";
         using (var entryKey = Registry.CurrentUser.CreateSubKey(entryPath))
         {
             entryKey.SetValue("MUIVerb", entry.Label);
-            entryKey.SetValue("Icon", $"\"{exePath}\",{entry.IconIndex}");
+            entryKey.SetValue("Icon", entry.Icon);
 
             using var cmdKey = Registry.CurrentUser.CreateSubKey($@"{entryPath}\command");
             cmdKey.SetValue("", $"\"{exePath}\" {entry.Command} \"%1\"");
@@ -223,7 +221,7 @@ public sealed class RegistryService
 
         using var key = Registry.CurrentUser.CreateSubKey(keyPath);
         key.SetValue("", $"{MenuName}: {entry.Label}");
-        key.SetValue("Icon", $"\"{exePath}\",{entry.IconIndex}");
+        key.SetValue("Icon", entry.Icon);
 
         using var cmdKey = Registry.CurrentUser.CreateSubKey($@"{keyPath}\command");
         cmdKey.SetValue("", $"\"{exePath}\" {entry.Command} \"%1\"");
@@ -247,6 +245,6 @@ public sealed class RegistryService
         public required string Label { get; init; }
         public required string Command { get; init; }
         public required string[] Extensions { get; init; }
-        public int IconIndex { get; init; }
+        public required string Icon { get; init; }
     }
 }
