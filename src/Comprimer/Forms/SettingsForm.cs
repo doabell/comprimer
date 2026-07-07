@@ -37,7 +37,7 @@ public sealed class SettingsForm : Form
 
     // Install
     private Label _lblInstallStatus = null!;
-    private Button _btnToggleInstall = null!;
+    private RoundedButton _btnToggleInstall = null!;
     private RoundedButton _btnApply = null!;
     private Label _lblUpdateHint = null!;
 
