@@ -11,17 +11,20 @@ namespace Comprimer.Forms;
 public sealed class SettingsForm : Form
 {
     // Colors
-    private static readonly Color BgColor = Color.FromArgb(243, 243, 243);
+    private static readonly Color BgColor = Color.FromArgb(250, 250, 250);
     private static readonly Color CardColor = Color.White;
     private static readonly Color AccentColor = Color.FromArgb(0, 120, 212);
-    private static readonly Color TextColor = Color.FromArgb(24, 24, 24);
-    private static readonly Color DimText = Color.FromArgb(110, 110, 110);
-    private static readonly Color BorderColor = Color.FromArgb(220, 220, 220);
+    private static readonly Color AccentHover = Color.FromArgb(0, 103, 181);
+    private static readonly Color TextColor = Color.FromArgb(32, 32, 32);
+    private static readonly Color DimText = Color.FromArgb(120, 120, 120);
+    private static readonly Color BorderColor = Color.FromArgb(230, 230, 230);
+    private static readonly Color ShadowColor = Color.FromArgb(235, 235, 235);
     private static readonly Color GreenColor = Color.FromArgb(16, 124, 16);
     private static readonly Color RedColor = Color.FromArgb(196, 43, 28);
-    private static readonly Color ChipBg = Color.FromArgb(232, 242, 252);
+    private static readonly Color ChipBg = Color.FromArgb(239, 246, 252);
     private static readonly Color DangerBg = Color.FromArgb(253, 231, 233);
     private static readonly Color DangerText = Color.FromArgb(196, 43, 28);
+    private static readonly Color DangerHover = Color.FromArgb(241, 210, 213);
 
     private readonly ConfigService _config;
     private readonly ExecutableService _exe;
@@ -35,7 +38,7 @@ public sealed class SettingsForm : Form
     // Install
     private Label _lblInstallStatus = null!;
     private Button _btnToggleInstall = null!;
-    private Button _btnApply = null!;
+    private RoundedButton _btnApply = null!;
     private Label _lblUpdateHint = null!;
 
     // Options
@@ -81,13 +84,6 @@ public sealed class SettingsForm : Form
     private Label _lblSecFormats = null!;
     private Label _lblSecTools = null!;
 
-    // Format grid headers
-    private Label _lblColFormat = null!;
-    private Label _lblColDown = null!;
-    private Label _lblColWebP = null!;
-    private Label _lblColJpg = null!;
-    private Label _lblColOpt = null!;
-
     public SettingsForm()
     {
         _config = new ConfigService();
@@ -109,26 +105,33 @@ public sealed class SettingsForm : Form
     private void BuildUI()
     {
         Text = "Comprimer";
-        ClientSize = new Size(520, 780);
-        MinimumSize = new Size(520, 700);
+        ClientSize = new Size(620, 820);
+        MinimumSize = new Size(580, 720);
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
         BackColor = BgColor;
         AutoScaleMode = AutoScaleMode.Dpi;
+        Padding = new Padding(0);
 
-        _scroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
+        _scroll = new Panel
+        {
+            Dock = DockStyle.Fill,
+            AutoScroll = true,
+            BackColor = BgColor,
+            Padding = new Padding(28, 24, 28, 24),
+        };
         Controls.Add(_scroll);
 
-        int y = 18;
-        int w = 480;
-        int left = 20;
+        int y = 8;
+        int w = _scroll.ClientSize.Width - 56;
+        int left = 28;
 
         // ─── Header ─────────────────────────────────────────
         _lblTitle = new Label
         {
             Text = "Comprimer",
-            Font = F(20, FontStyle.Bold),
+            Font = F(26, FontStyle.Bold),
             ForeColor = TextColor,
             AutoSize = true,
             Location = new Point(left, y),
@@ -138,63 +141,132 @@ public sealed class SettingsForm : Form
         _lnkLang = new LinkLabel
         {
             Text = T("En français", "En anglais"),
-            Font = F(9),
+            Font = F(9.5f),
             AutoSize = true,
-            Location = new Point(w - 60, y + 8),
+            LinkBehavior = LinkBehavior.HoverUnderline,
+            Location = new Point(left + w - 110, y + 12),
             LinkColor = AccentColor,
-            ActiveLinkColor = AccentColor,
+            ActiveLinkColor = AccentHover,
+            VisitedLinkColor = AccentColor,
         };
         _lnkLang.Click += LnkLang_Click;
         _scroll.Controls.Add(_lnkLang);
 
-        y += 38;
+        y += 50;
         _lblSubtitle = new Label
         {
             Text = T("Image compression & conversion for Explorer",
                      "Compression et conversion d'images pour l'Explorateur"),
-            Font = F(9),
+            Font = F(10),
             ForeColor = DimText,
             AutoSize = true,
             Location = new Point(left + 2, y),
         };
         _scroll.Controls.Add(_lblSubtitle);
-        y += 32;
+        y += 42;
 
         // ─── 1. Explorer Integration ────────────────────────
         _lblSecExplorer = SectionLabel(_scroll, T("Explorer Integration", "Intégration Explorer"), ref y, left);
-        var card1 = Card(_scroll, ref y, left, w, 86);
+        var card1 = Card(_scroll, ref y, left, w, 110);
 
-        _lblInstallStatus = new Label { Font = F(9), AutoSize = true, Location = new Point(16, 10) };
+        _lblInstallStatus = new Label
+        {
+            Font = F(10, FontStyle.Bold),
+            AutoSize = true,
+            Location = new Point(20, 18),
+        };
         card1.Controls.Add(_lblInstallStatus);
 
-        _lblUpdateHint = new Label { Font = F(8), ForeColor = DimText, AutoSize = true, Location = new Point(16, 30), Visible = false };
+        _lblUpdateHint = new Label
+        {
+            Font = F(9),
+            ForeColor = RedColor,
+            AutoSize = true,
+            Location = new Point(20, 44),
+            Visible = false,
+        };
         card1.Controls.Add(_lblUpdateHint);
 
-        _btnToggleInstall = Btn("", 16, 54, 200, 26);
-        _btnToggleInstall.Click += BtnToggleInstall_Click;
-        card1.Controls.Add(_btnToggleInstall);
+        var btnPanel = new Panel
+        {
+            Location = new Point(20, 68),
+            Size = new Size(w - 56, 32),
+            BackColor = Color.Transparent,
+        };
+        card1.Controls.Add(btnPanel);
 
-        _btnApply = Btn(T("Apply", "Appliquer"), 224, 54, 100, 26);
+        _btnToggleInstall = new RoundedButton
+        {
+            Text = "",
+            Font = F(9),
+            Size = new Size(180, 32),
+            Location = new Point(0, 0),
+            Cursor = Cursors.Hand,
+        };
+        _btnToggleInstall.Click += BtnToggleInstall_Click;
+        btnPanel.Controls.Add(_btnToggleInstall);
+
+        _btnApply = new RoundedButton
+        {
+            Text = T("Apply", "Appliquer"),
+            Font = F(9),
+            Size = new Size(110, 32),
+            Location = new Point(194, 0),
+            Cursor = Cursors.Hand,
+            BackColor = CardColor,
+            ForeColor = AccentColor,
+            BorderColor = AccentColor,
+            HoverBackColor = Color.FromArgb(245, 250, 255),
+        };
         _btnApply.Click += BtnApply_Click;
-        card1.Controls.Add(_btnApply);
+        btnPanel.Controls.Add(_btnApply);
 
         // ─── 2. Options ─────────────────────────────────────
         _lblSecOptions = SectionLabel(_scroll, T("Options", "Options"), ref y, left);
-        var card2 = Card(_scroll, ref y, left, w, 80);
+        var card2 = Card(_scroll, ref y, left, w, 104);
 
-        _chkNested = Chk(T("Nested submenu", "Sous-menu imbriqué"), 16, 14);
-        _chkOverwrite = Chk(T("Overwrite originals", "Écraser les originaux"), 16, 42);
-        card2.Controls.Add(_chkNested);
-        card2.Controls.Add(_chkOverwrite);
+        var optionsTable = new TableLayoutPanel
+        {
+            Location = new Point(20, 16),
+            Size = new Size(w - 56, 72),
+            ColumnCount = 2,
+            RowCount = 2,
+            BackColor = Color.Transparent,
+        };
+        optionsTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
+        optionsTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
+        optionsTable.RowStyles.Add(new RowStyle(SizeType.Percent, 50f));
+        optionsTable.RowStyles.Add(new RowStyle(SizeType.Percent, 50f));
+        card2.Controls.Add(optionsTable);
 
-        _lblModeLabel = Lbl(T("Downscale limit:", "Limite de réduction :"), F(8.5f), TextColor, 240, 16);
-        card2.Controls.Add(_lblModeLabel);
+        _chkNested = Chk(T("Nested submenu", "Sous-menu imbriqué"));
+        _chkOverwrite = Chk(T("Overwrite originals", "Écraser les originaux"));
+        optionsTable.Controls.Add(_chkNested, 0, 0);
+        optionsTable.Controls.Add(_chkOverwrite, 0, 1);
+
+        var modePanel = new FlowLayoutPanel
+        {
+            FlowDirection = FlowDirection.LeftToRight,
+            Margin = new Padding(0),
+            Padding = new Padding(0, 2, 0, 0),
+            AutoSize = true,
+            BackColor = Color.Transparent,
+        };
+        _lblModeLabel = new Label
+        {
+            Text = T("Downscale limit:", "Limite de réduction :"),
+            Font = F(9.5f),
+            ForeColor = TextColor,
+            AutoSize = true,
+            Margin = new Padding(0, 4, 8, 0),
+        };
         _cboMode = new ComboBox
         {
-            Font = F(8.5f),
+            Font = F(9.5f),
             DropDownStyle = ComboBoxStyle.DropDownList,
-            Location = new Point(355, 12),
-            Size = new Size(115, 24),
+            Width = 140,
+            Height = 24,
+            Margin = new Padding(0),
         };
         _cboMode.Items.AddRange([
             T("Longest side", "Plus long côté"),
@@ -202,27 +274,31 @@ public sealed class SettingsForm : Form
             T("Height only", "Hauteur seule"),
         ]);
         _cboMode.SelectedIndex = 0;
-        card2.Controls.Add(_cboMode);
+        modePanel.Controls.Add(_lblModeLabel);
+        modePanel.Controls.Add(_cboMode);
+        optionsTable.Controls.Add(modePanel, 1, 0);
+        optionsTable.SetRowSpan(modePanel, 2);
 
         // ─── 3. Downscale Sizes ─────────────────────────────
         _lblSecSizes = SectionLabel(_scroll, T("Downscale Sizes (px)", "Tailles de réduction (px)"), ref y, left);
-        var card3 = Card(_scroll, ref y, left, w, 52);
+        var card3 = Card(_scroll, ref y, left, w, 72);
 
         _sizesFlow = new FlowLayoutPanel
         {
-            Location = new Point(10, 10),
-            Size = new Size(350, 34),
+            Location = new Point(16, 14),
+            Size = new Size(w - 190, 44),
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = false,
             AutoScroll = true,
+            BackColor = Color.Transparent,
         };
         card3.Controls.Add(_sizesFlow);
 
         _nudNewSize = new NumericUpDown
         {
-            Font = F(8.5f),
-            Location = new Point(370, 14),
-            Size = new Size(64, 22),
+            Font = F(9.5f),
+            Location = new Point(w - 160, 16),
+            Size = new Size(72, 24),
             Minimum = 50,
             Maximum = 10000,
             Value = 1024,
@@ -230,52 +306,87 @@ public sealed class SettingsForm : Form
         };
         card3.Controls.Add(_nudNewSize);
 
-        var btnAdd = Btn("+", 438, 13, 28, 24);
-        btnAdd.Font = F(11, FontStyle.Bold);
+        var btnAdd = new RoundedButton
+        {
+            Text = "+",
+            Font = F(13, FontStyle.Bold),
+            Size = new Size(36, 30),
+            Location = new Point(w - 80, 13),
+            Cursor = Cursors.Hand,
+            BackColor = AccentColor,
+            ForeColor = Color.White,
+            BorderColor = AccentColor,
+            HoverBackColor = AccentHover,
+        };
         btnAdd.Click += BtnAddSize_Click;
         card3.Controls.Add(btnAdd);
 
         // ─── 4. Format Operations ───────────────────────────
         _lblSecFormats = SectionLabel(_scroll, T("Format Operations", "Opérations par format"), ref y, left);
-        var card4 = Card(_scroll, ref y, left, w, 124);
+        var card4 = Card(_scroll, ref y, left, w, 168);
 
-        // Column headers
-        _lblColFormat = Lbl(T("Format", "Format"), F(8, FontStyle.Bold), DimText, 16, 10);
-        _lblColDown = Lbl(T("Downscale", "Réduire"), F(8, FontStyle.Bold), DimText, 100, 10);
-        _lblColOpt = Lbl(T("Optimize", "Optimiser"), F(8, FontStyle.Bold), DimText, 195, 10);
-        _lblColWebP = Lbl("→ WebP", F(8, FontStyle.Bold), DimText, 295, 10);
-        _lblColJpg = Lbl("→ JPG", F(8, FontStyle.Bold), DimText, 395, 10);
-        card4.Controls.Add(_lblColFormat);
-        card4.Controls.Add(_lblColDown);
-        card4.Controls.Add(_lblColOpt);
-        card4.Controls.Add(_lblColWebP);
-        card4.Controls.Add(_lblColJpg);
+        var formatGrid = new TableLayoutPanel
+        {
+            Location = new Point(20, 16),
+            Size = new Size(w - 56, 136),
+            ColumnCount = 5,
+            RowCount = 4,
+            BackColor = Color.Transparent,
+        };
+        formatGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 22f));
+        formatGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 19.5f));
+        formatGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 19.5f));
+        formatGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 19.5f));
+        formatGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 19.5f));
+        for (int i = 0; i < 4; i++)
+            formatGrid.RowStyles.Add(new RowStyle(SizeType.Percent, 25f));
+        card4.Controls.Add(formatGrid);
 
-        int ry = 34;
-        card4.Controls.Add(Lbl("JPG", F(8.5f, FontStyle.Bold), TextColor, 16, ry + 2));
-        _chkJpgDown = Chk("", 120, ry); card4.Controls.Add(_chkJpgDown);
-        _chkJpgMoz = Chk("", 215, ry); card4.Controls.Add(_chkJpgMoz);
-        _chkJpgWebP = Chk("", 315, ry); card4.Controls.Add(_chkJpgWebP);
+        // Header row
+        formatGrid.Controls.Add(GridHeader(T("Format", "Format")), 0, 0);
+        formatGrid.Controls.Add(GridHeader(T("Downscale", "Réduire")), 1, 0);
+        formatGrid.Controls.Add(GridHeader(T("Optimize", "Optimiser")), 2, 0);
+        formatGrid.Controls.Add(GridHeader("→ WebP"), 3, 0);
+        formatGrid.Controls.Add(GridHeader("→ JPG"), 4, 0);
 
-        ry += 28;
-        card4.Controls.Add(Lbl("PNG", F(8.5f, FontStyle.Bold), TextColor, 16, ry + 2));
-        _chkPngDown = Chk("", 120, ry); card4.Controls.Add(_chkPngDown);
-        _chkPngOpt = Chk("", 215, ry); card4.Controls.Add(_chkPngOpt);
-        _chkPngWebP = Chk("", 315, ry); card4.Controls.Add(_chkPngWebP);
-        _chkPngJpg = Chk("", 415, ry); card4.Controls.Add(_chkPngJpg);
+        // JPG row
+        formatGrid.Controls.Add(GridLabel("JPG"), 0, 1);
+        _chkJpgDown = GridChk(); formatGrid.Controls.Add(_chkJpgDown, 1, 1);
+        _chkJpgMoz = GridChk(); formatGrid.Controls.Add(_chkJpgMoz, 2, 1);
+        _chkJpgWebP = GridChk(); formatGrid.Controls.Add(_chkJpgWebP, 3, 1);
 
-        ry += 28;
-        card4.Controls.Add(Lbl("WebP", F(8.5f, FontStyle.Bold), TextColor, 16, ry + 2));
-        _chkWebPDown = Chk("", 120, ry); card4.Controls.Add(_chkWebPDown);
+        // PNG row
+        formatGrid.Controls.Add(GridLabel("PNG"), 0, 2);
+        _chkPngDown = GridChk(); formatGrid.Controls.Add(_chkPngDown, 1, 2);
+        _chkPngOpt = GridChk(); formatGrid.Controls.Add(_chkPngOpt, 2, 2);
+        _chkPngWebP = GridChk(); formatGrid.Controls.Add(_chkPngWebP, 3, 2);
+        _chkPngJpg = GridChk(); formatGrid.Controls.Add(_chkPngJpg, 4, 2);
+
+        // WebP row
+        formatGrid.Controls.Add(GridLabel("WebP"), 0, 3);
+        _chkWebPDown = GridChk(); formatGrid.Controls.Add(_chkWebPDown, 1, 3);
 
         // ─── 5. External Tools ──────────────────────────────
         _lblSecTools = SectionLabel(_scroll, T("External Tools", "Outils externes"), ref y, left);
-        var card5 = Card(_scroll, ref y, left, w, 130);
+        var card5 = Card(_scroll, ref y, left, w, 182);
 
-        int ty = 12;
-        AddToolRow(card5, "pngquant", ref ty, out _lblPngquantStatus, out _txtPngquant, out _btnBrowsePngquant);
-        AddToolRow(card5, "cwebp", ref ty, out _lblCwebpStatus, out _txtCwebp, out _btnBrowseCwebp);
-        AddToolRow(card5, "cjpeg", ref ty, out _lblCjpegStatus, out _txtCjpeg, out _btnBrowseCjpeg, T("cjpeg from mozjpeg", "cjpeg de mozjpeg"));
+        int ty = 16;
+        AddToolRow(card5, "pngquant", w, ref ty, out _lblPngquantStatus, out _txtPngquant, out _btnBrowsePngquant);
+        AddToolRow(card5, "cwebp", w, ref ty, out _lblCwebpStatus, out _txtCwebp, out _btnBrowseCwebp);
+        AddToolRow(card5, "cjpeg", w, ref ty, out _lblCjpegStatus, out _txtCjpeg, out _btnBrowseCjpeg, T("cjpeg from mozjpeg", "cjpeg de mozjpeg"));
+
+        // Footer
+        y += 16;
+        var footer = new Label
+        {
+            Text = T("Changes are saved automatically when you close this window.",
+                     "Les modifications sont enregistrées automatiquement à la fermeture."),
+            Font = F(8.5f),
+            ForeColor = DimText,
+            AutoSize = true,
+            Location = new Point(left + 4, y),
+        };
+        _scroll.Controls.Add(footer);
     }
 
     // ── UI Helpers ──────────────────────────────────────────
@@ -291,17 +402,34 @@ public sealed class SettingsForm : Form
 
     private Label SectionLabel(Control parent, string title, ref int y, int left)
     {
-        y += 10;
+        y += 14;
+        var container = new Panel
+        {
+            Location = new Point(left + 4, y),
+            Size = new Size(200, 22),
+            BackColor = Color.Transparent,
+        };
+
         var lbl = new Label
         {
             Text = title.ToUpperInvariant(),
-            Font = F(8, FontStyle.Bold),
+            Font = F(8.5f, FontStyle.Bold),
             ForeColor = DimText,
             AutoSize = true,
-            Location = new Point(left + 4, y),
+            Location = new Point(0, 0),
         };
-        parent.Controls.Add(lbl);
-        y += 20;
+        container.Controls.Add(lbl);
+
+        var line = new Panel
+        {
+            BackColor = AccentColor,
+            Size = new Size(28, 3),
+            Location = new Point(0, 16),
+        };
+        container.Controls.Add(line);
+
+        parent.Controls.Add(container);
+        y += 28;
         return lbl;
     }
 
@@ -313,78 +441,111 @@ public sealed class SettingsForm : Form
             Size = new Size(w, h),
             BackColor = CardColor,
             BorderColor = BorderColor,
+            ShadowColor = ShadowColor,
         };
         parent.Controls.Add(p);
-        y += h + 8;
+        y += h + 14;
         return p;
     }
 
-    private static CheckBox Chk(string text, int x, int y) => new()
+    private static CheckBox Chk(string text) => new()
     {
         Text = text,
-        Font = F(8.5f),
+        Font = F(9.5f),
         ForeColor = TextColor,
         AutoSize = true,
-        Location = new Point(x, y),
+        Margin = new Padding(0, 2, 0, 0),
+        BackColor = Color.Transparent,
     };
 
-    private static Button Btn(string text, int x, int y, int w, int h)
+    private static CheckBox GridChk() => new()
     {
-        var b = new Button
-        {
-            Text = text,
-            Font = new("Segoe UI", 8.5f),
-            Location = new Point(x, y),
-            Size = new Size(w, h),
-            FlatStyle = FlatStyle.Flat,
-            ForeColor = AccentColor,
-            BackColor = CardColor,
-            Cursor = Cursors.Hand,
-        };
-        b.FlatAppearance.BorderColor = AccentColor;
-        return b;
-    }
+        AutoSize = true,
+        Margin = new Padding(0, 4, 0, 0),
+        BackColor = Color.Transparent,
+    };
 
-    private void AddToolRow(Control parent, string name, ref int y, out Label status, out TextBox pathBox, out Button browse, string? tooltip = null)
+    private static Label GridHeader(string text) => new()
     {
-        var lbl = Lbl(name, F(8.5f, FontStyle.Bold), TextColor, 16, y + 3);
-        parent.Controls.Add(lbl);
+        Text = text,
+        Font = F(9, FontStyle.Bold),
+        ForeColor = DimText,
+        AutoSize = true,
+        Margin = new Padding(0, 0, 0, 4),
+        BackColor = Color.Transparent,
+    };
+
+    private static Label GridLabel(string text) => new()
+    {
+        Text = text,
+        Font = F(9.5f, FontStyle.Bold),
+        ForeColor = TextColor,
+        AutoSize = true,
+        Margin = new Padding(0, 4, 0, 0),
+        BackColor = Color.Transparent,
+    };
+
+    private void AddToolRow(Control parent, string name, int cardWidth, ref int y, out Label status, out TextBox pathBox, out Button browse, string? tooltip = null)
+    {
+        var row = new Panel
+        {
+            Location = new Point(20, y),
+            Size = new Size(cardWidth - 56, 42),
+            BackColor = Color.Transparent,
+        };
+
+        var lbl = new Label
+        {
+            Text = name,
+            Font = F(9.5f, FontStyle.Bold),
+            ForeColor = TextColor,
+            AutoSize = true,
+            Location = new Point(0, 10),
+            BackColor = Color.Transparent,
+        };
+        row.Controls.Add(lbl);
         if (tooltip != null)
         {
             var tip = new ToolTip();
             tip.SetToolTip(lbl, tooltip);
         }
 
-        status = new Label { Font = F(8), AutoSize = true, Location = new Point(100, y + 4) };
-        parent.Controls.Add(status);
-
-        pathBox = new TextBox
+        status = new Label
         {
-            Font = F(8),
-            Size = new Size(210, 22),
-            Location = new Point(196, y + 1),
+            Font = F(9, FontStyle.Bold),
+            AutoSize = true,
+            Location = new Point(90, 11),
+            BackColor = Color.Transparent,
+        };
+        row.Controls.Add(status);
+
+        browse = new RoundedButton
+        {
+            Text = "…",
+            Font = F(10),
+            Size = new Size(32, 30),
+            Location = new Point(row.Width - 32, 6),
+            Cursor = Cursors.Hand,
+            BackColor = CardColor,
+            ForeColor = DimText,
+            BorderColor = BorderColor,
+            HoverBackColor = Color.FromArgb(245, 245, 245),
+        };
+        browse.FlatAppearance.BorderColor = BorderColor;
+        var target = pathBox = new TextBox
+        {
+            Font = F(9),
+            Size = new Size(row.Width - 140, 24),
+            Location = new Point(142, 9),
             BorderStyle = BorderStyle.FixedSingle,
             PlaceholderText = T("Custom path (optional)", "Chemin personnalisé (optionnel)"),
         };
-        parent.Controls.Add(pathBox);
-
-        browse = new Button
-        {
-            Text = "…",
-            Font = F(8),
-            Size = new Size(28, 22),
-            Location = new Point(412, y + 1),
-            FlatStyle = FlatStyle.Flat,
-            ForeColor = DimText,
-            BackColor = CardColor,
-            Cursor = Cursors.Hand,
-        };
-        browse.FlatAppearance.BorderColor = BorderColor;
-        var target = pathBox;
         browse.Click += (_, _) => BrowseExe(target);
-        parent.Controls.Add(browse);
+        row.Controls.Add(pathBox);
+        row.Controls.Add(browse);
 
-        y += 38;
+        parent.Controls.Add(row);
+        y += 48;
     }
 
     // ── Data Load / Save ────────────────────────────────────
@@ -456,16 +617,18 @@ public sealed class SettingsForm : Form
         if (installed)
         {
             _btnToggleInstall.Text = T("Remove from Explorer", "Retirer de l'Explorateur");
-            _btnToggleInstall.ForeColor = DangerText;
             _btnToggleInstall.BackColor = DangerBg;
-            _btnToggleInstall.FlatAppearance.BorderColor = DangerText;
+            _btnToggleInstall.ForeColor = DangerText;
+            _btnToggleInstall.BorderColor = DangerText;
+            _btnToggleInstall.HoverBackColor = DangerHover;
         }
         else
         {
             _btnToggleInstall.Text = T("Add to Explorer", "Ajouter à l'Explorateur");
-            _btnToggleInstall.ForeColor = Color.White;
             _btnToggleInstall.BackColor = AccentColor;
-            _btnToggleInstall.FlatAppearance.BorderColor = AccentColor;
+            _btnToggleInstall.ForeColor = Color.White;
+            _btnToggleInstall.BorderColor = AccentColor;
+            _btnToggleInstall.HoverBackColor = AccentHover;
         }
 
         // Apply button styling
@@ -483,7 +646,6 @@ public sealed class SettingsForm : Form
                 _lblUpdateHint.Text = T(
                     "⚠ Registered path differs — click Apply to update",
                     "⚠ Chemin enregistré différent — cliquez Appliquer pour mettre à jour");
-                _lblUpdateHint.ForeColor = RedColor;
                 _lblUpdateHint.Visible = true;
             }
         }
@@ -601,11 +763,64 @@ public sealed class SettingsForm : Form
     private sealed class RoundedPanel : Panel
     {
         public Color BorderColor { get; set; } = Color.FromArgb(220, 220, 220);
-        private const int R = 6;
+        public Color ShadowColor { get; set; } = Color.FromArgb(235, 235, 235);
+        private const int R = 8;
 
         public RoundedPanel()
         {
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+
+            // Shadow
+            var shadowRect = new Rectangle(1, 2, Width - 3, Height - 4);
+            using var shadowPath = RPath(shadowRect, R);
+            using var shadowBrush = new SolidBrush(ShadowColor);
+            g.FillPath(shadowBrush, shadowPath);
+
+            // Card
+            var rect = new Rectangle(0, 0, Width - 2, Height - 2);
+            using var path = RPath(rect, R);
+            using var brush = new SolidBrush(BackColor);
+            using var pen = new Pen(BorderColor, 1f);
+            g.FillPath(brush, path);
+            g.DrawPath(pen, path);
+        }
+
+        private static GraphicsPath RPath(Rectangle r, int rad)
+        {
+            var p = new GraphicsPath();
+            int d = rad * 2;
+            p.AddArc(r.X, r.Y, d, d, 180, 90);
+            p.AddArc(r.Right - d, r.Y, d, d, 270, 90);
+            p.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+            p.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
+            p.CloseFigure();
+            return p;
+        }
+    }
+
+    private sealed class RoundedButton : Button
+    {
+        public Color BorderColor { get; set; } = Color.FromArgb(0, 120, 212);
+        public Color HoverBackColor { get; set; } = Color.FromArgb(0, 103, 181);
+        private Color _normalBackColor;
+        private const int R = 6;
+
+        public RoundedButton()
+        {
+            FlatStyle = FlatStyle.Flat;
+            FlatAppearance.BorderSize = 0;
+            BackColor = Color.FromArgb(0, 120, 212);
+            ForeColor = Color.White;
+            _normalBackColor = BackColor;
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
+            MouseEnter += (_, _) => { _normalBackColor = BackColor; BackColor = HoverBackColor; };
+            MouseLeave += (_, _) => BackColor = _normalBackColor;
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -618,6 +833,9 @@ public sealed class SettingsForm : Form
             using var pen = new Pen(BorderColor, 1f);
             g.FillPath(brush, path);
             g.DrawPath(pen, path);
+
+            var flags = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding;
+            TextRenderer.DrawText(g, Text, Font, rect, ForeColor, flags);
         }
 
         private static GraphicsPath RPath(Rectangle r, int rad)
@@ -641,37 +859,62 @@ public sealed class SettingsForm : Form
         public SizeChip(int size)
         {
             SizeValue = size;
-            Size = new Size(84, 26);
-            Margin = new Padding(2, 3, 2, 3);
+            Size = new Size(88, 30);
+            Margin = new Padding(3, 4, 3, 4);
             BackColor = ChipBg;
             Cursor = Cursors.Default;
+            DoubleBuffered = true;
 
             Controls.Add(new Label
             {
-                Text = $"{size}",
-                Font = new("Segoe UI", 8.25f),
+                Text = $"{size}px",
+                Font = new("Segoe UI", 8.5f),
                 ForeColor = AccentColor,
                 AutoSize = false,
-                Size = new Size(54, 20),
-                Location = new Point(8, 3),
+                Size = new Size(58, 22),
+                Location = new Point(8, 4),
                 TextAlign = ContentAlignment.MiddleLeft,
+                BackColor = Color.Transparent,
             });
 
             var x = new Label
             {
                 Text = "×",
-                Font = new("Segoe UI", 8.5f, FontStyle.Bold),
+                Font = new("Segoe UI", 10f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(140, 140, 140),
                 AutoSize = false,
-                Size = new Size(18, 20),
-                Location = new Point(62, 3),
+                Size = new Size(20, 22),
+                Location = new Point(64, 4),
                 TextAlign = ContentAlignment.MiddleCenter,
                 Cursor = Cursors.Hand,
+                BackColor = Color.Transparent,
             };
             x.Click += (_, _) => RemoveClicked?.Invoke(this, EventArgs.Empty);
             x.MouseEnter += (_, _) => x.ForeColor = RedColor;
             x.MouseLeave += (_, _) => x.ForeColor = Color.FromArgb(140, 140, 140);
             Controls.Add(x);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            var rect = new Rectangle(0, 0, Width - 1, Height - 1);
+            using var path = RoundedRect(rect, 6);
+            using var brush = new SolidBrush(BackColor);
+            g.FillPath(brush, path);
+        }
+
+        private static GraphicsPath RoundedRect(Rectangle r, int rad)
+        {
+            var p = new GraphicsPath();
+            int d = rad * 2;
+            p.AddArc(r.X, r.Y, d, d, 180, 90);
+            p.AddArc(r.Right - d, r.Y, d, d, 270, 90);
+            p.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+            p.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
+            p.CloseFigure();
+            return p;
         }
     }
 }
