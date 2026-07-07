@@ -116,8 +116,8 @@ public sealed class SettingsForm : Form
         ClientSize = new Size(640, 920);
         MinimumSize = new Size(600, 720);
         StartPosition = FormStartPosition.CenterScreen;
-        FormBorderStyle = FormBorderStyle.Sizable;
-        MaximizeBox = true;
+        FormBorderStyle = FormBorderStyle.FixedSingle;
+        MaximizeBox = false;
         BackColor = BgColor;
         AutoScaleMode = AutoScaleMode.Dpi;
 
