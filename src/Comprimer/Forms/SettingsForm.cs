@@ -34,6 +34,7 @@ public sealed class SettingsForm : Form
     private static readonly Color AccentColor = Color.FromArgb(0, 120, 212);
     private static readonly Color GreenColor = Color.FromArgb(16, 124, 16);
     private static readonly Color RedColor = Color.FromArgb(196, 43, 28);
+    private static readonly Color DangerText = Color.FromArgb(196, 43, 28);
     private static readonly Color ChipBgLight = Color.FromArgb(232, 242, 252);
     private static readonly Color ChipBgDark = Color.FromArgb(35, 60, 85);
     private static readonly Color DangerBgLight = Color.FromArgb(253, 231, 233);
