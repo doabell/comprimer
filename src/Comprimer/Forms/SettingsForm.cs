@@ -86,7 +86,7 @@ public sealed class SettingsForm : Form
         _settings = _config.Load();
         _isFr = _settings.Language == "fr";
 
-        SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
+        SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
         BuildUI();
         LoadSettings();
         RefreshAll();
@@ -113,11 +113,11 @@ public sealed class SettingsForm : Form
     private void BuildUI()
     {
         Text = "Comprimer";
-        ClientSize = new Size(560, 830);
-        MinimumSize = new Size(500, 720);
+        ClientSize = new Size(640, 900);
+        MinimumSize = new Size(600, 720);
         StartPosition = FormStartPosition.CenterScreen;
-        FormBorderStyle = FormBorderStyle.FixedSingle;
-        MaximizeBox = false;
+        FormBorderStyle = FormBorderStyle.Sizable;
+        MaximizeBox = true;
         BackColor = BgColor;
         AutoScaleMode = AutoScaleMode.Dpi;
 
@@ -125,7 +125,7 @@ public sealed class SettingsForm : Form
         Controls.Add(_scroll);
 
         int y = 18;
-        int w = 520;
+        int w = 600;
         int left = 20;
 
         // Header
@@ -212,14 +212,14 @@ public sealed class SettingsForm : Form
 
         // 3. Downscale Sizes
         _lblSecSizes = SectionLabel(_scroll, T("Downscale Sizes (px)", "Tailles de réduction (px)"), ref y, left);
-        var card3 = Card(_scroll, ref y, left, w, 58);
+        var card3 = Card(_scroll, ref y, left, w, 90);
 
         _sizesFlow = new FlowLayoutPanel
         {
-            Location = new Point(10, 12),
-            Size = new Size(350, 34),
+            Location = new Point(10, 16),
+            Size = new Size(380, 58),
             FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = false,
+            WrapContents = true,
             AutoScroll = true,
         };
         card3.Controls.Add(_sizesFlow);
@@ -227,8 +227,8 @@ public sealed class SettingsForm : Form
         _nudNewSize = new NumericUpDown
         {
             Font = F(8.5f),
-            Location = new Point(370, 16),
-            Size = new Size(64, 24),
+            Location = new Point(400, 22),
+            Size = new Size(68, 24),
             Minimum = 50,
             Maximum = 10000,
             Value = 1024,
@@ -238,7 +238,7 @@ public sealed class SettingsForm : Form
         };
         card3.Controls.Add(_nudNewSize);
 
-        var btnAdd = Btn(T("Add", "Ajouter"), 442, 14, 62, 30);
+        var btnAdd = Btn(T("Add", "Ajouter"), 476, 20, 68, 30);
         btnAdd.Click += BtnAddSize_Click;
         card3.Controls.Add(btnAdd);
 
@@ -247,10 +247,10 @@ public sealed class SettingsForm : Form
         var card4 = Card(_scroll, ref y, left, w, 124);
 
         _lblColFormat = Lbl(T("Format", "Format"), F(8, FontStyle.Bold), DimText, 16, 10);
-        _lblColDown = Lbl(T("Downscale", "Réduire"), F(8, FontStyle.Bold), DimText, 100, 10);
-        _lblColOpt = Lbl(T("Optimize", "Optimiser"), F(8, FontStyle.Bold), DimText, 195, 10);
-        _lblColWebP = Lbl("→ WebP", F(8, FontStyle.Bold), DimText, 295, 10);
-        _lblColJpg = Lbl("→ JPG", F(8, FontStyle.Bold), DimText, 395, 10);
+        _lblColDown = Lbl(T("Downscale", "Réduire"), F(8, FontStyle.Bold), DimText, 110, 10);
+        _lblColOpt = Lbl(T("Optimize", "Optimiser"), F(8, FontStyle.Bold), DimText, 205, 10);
+        _lblColWebP = Lbl("→ WebP", F(8, FontStyle.Bold), DimText, 305, 10);
+        _lblColJpg = Lbl("→ JPG", F(8, FontStyle.Bold), DimText, 405, 10);
         card4.Controls.Add(_lblColFormat);
         card4.Controls.Add(_lblColDown);
         card4.Controls.Add(_lblColOpt);
@@ -276,7 +276,7 @@ public sealed class SettingsForm : Form
 
         // 5. External Tools
         _lblSecTools = SectionLabel(_scroll, T("External Tools", "Outils externes"), ref y, left);
-        var card5 = Card(_scroll, ref y, left, w, 142);
+        var card5 = Card(_scroll, ref y, left, w, 150);
 
         int ty = 14;
         AddToolRow(card5, "pngquant", ref ty, out _lblPngquantStatus, out _txtPngquant, out _btnBrowsePngquant);
@@ -321,7 +321,7 @@ public sealed class SettingsForm : Form
             BorderColor = BorderColor,
         };
         parent.Controls.Add(p);
-        y += h + 8;
+        y += h + 16;
         return p;
     }
 
@@ -362,14 +362,14 @@ public sealed class SettingsForm : Form
             tip.SetToolTip(lbl, tooltip);
         }
 
-        status = new Label { Font = F(8.5f, FontStyle.Bold), AutoSize = true, Location = new Point(100, y + 4) };
+        status = new Label { Font = F(8.5f, FontStyle.Bold), AutoSize = true, Location = new Point(120, y + 4) };
         parent.Controls.Add(status);
 
         pathBox = new TextBox
         {
             Font = F(8.5f),
-            Size = new Size(210, 24),
-            Location = new Point(196, y + 2),
+            Size = new Size(230, 24),
+            Location = new Point(210, y + 2),
             BorderStyle = BorderStyle.FixedSingle,
             PlaceholderText = T("Custom path (optional)", "Chemin personnalisé (optionnel)"),
             BackColor = InputBg,
@@ -382,7 +382,7 @@ public sealed class SettingsForm : Form
             Text = "…",
             Font = F(9),
             Size = new Size(28, 26),
-            Location = new Point(412, y + 2),
+            Location = new Point(448, y + 2),
             FlatStyle = FlatStyle.Flat,
             ForeColor = DimText,
             BackColor = CardColor,
