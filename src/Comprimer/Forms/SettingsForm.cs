@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Runtime.InteropServices;
 using Comprimer.Models;
 using Comprimer.Services;
 
@@ -10,18 +11,40 @@ namespace Comprimer.Forms;
 /// </summary>
 public sealed class SettingsForm : Form
 {
-    // Colors
-    private static readonly Color BgColor = Color.FromArgb(243, 243, 243);
-    private static readonly Color CardColor = Color.White;
+    // Light theme
+    private static readonly Color LightBg = Color.FromArgb(243, 243, 243);
+    private static readonly Color LightCard = Color.White;
+    private static readonly Color LightText = Color.FromArgb(24, 24, 24);
+    private static readonly Color LightDim = Color.FromArgb(110, 110, 110);
+    private static readonly Color LightBorder = Color.FromArgb(220, 220, 220);
+    private static readonly Color LightInputBg = Color.White;
+    private static readonly Color LightChipBg = Color.FromArgb(232, 242, 252);
+    private static readonly Color LightDangerBg = Color.FromArgb(253, 231, 233);
+
+    // Dark theme
+    private static readonly Color DarkBg = Color.FromArgb(32, 32, 32);
+    private static readonly Color DarkCard = Color.FromArgb(45, 45, 45);
+    private static readonly Color DarkText = Color.FromArgb(240, 240, 240);
+    private static readonly Color DarkDim = Color.FromArgb(160, 160, 160);
+    private static readonly Color DarkBorder = Color.FromArgb(70, 70, 70);
+    private static readonly Color DarkInputBg = Color.FromArgb(55, 55, 55);
+    private static readonly Color DarkChipBg = Color.FromArgb(35, 60, 85);
+    private static readonly Color DarkDangerBg = Color.FromArgb(80, 35, 38);
+
     private static readonly Color AccentColor = Color.FromArgb(0, 120, 212);
-    private static readonly Color TextColor = Color.FromArgb(24, 24, 24);
-    private static readonly Color DimText = Color.FromArgb(110, 110, 110);
-    private static readonly Color BorderColor = Color.FromArgb(220, 220, 220);
     private static readonly Color GreenColor = Color.FromArgb(16, 124, 16);
     private static readonly Color RedColor = Color.FromArgb(196, 43, 28);
-    private static readonly Color ChipBg = Color.FromArgb(232, 242, 252);
-    private static readonly Color DangerBg = Color.FromArgb(253, 231, 233);
     private static readonly Color DangerText = Color.FromArgb(196, 43, 28);
+
+    private bool _isDark;
+    private Color BgColor => _isDark ? DarkBg : LightBg;
+    private Color CardColor => _isDark ? DarkCard : LightCard;
+    private Color TextColor => _isDark ? DarkText : LightText;
+    private Color DimText => _isDark ? DarkDim : LightDim;
+    private Color BorderColor => _isDark ? DarkBorder : LightBorder;
+    private Color InputBg => _isDark ? DarkInputBg : LightInputBg;
+    private Color ChipBg => _isDark ? DarkChipBg : LightChipBg;
+    private Color DangerBg => _isDark ? DarkDangerBg : LightDangerBg;
 
     private readonly ConfigService _config;
     private readonly ExecutableService _exe;
@@ -95,6 +118,7 @@ public sealed class SettingsForm : Form
         _registry = new RegistryService();
         _settings = _config.Load();
         _isFr = _settings.Language == "fr";
+        _isDark = _settings.DarkMode;
 
         BuildUI();
         LoadSettings();
@@ -105,6 +129,89 @@ public sealed class SettingsForm : Form
 
     // ── Localization ────────────────────────────────────────
     private string T(string en, string fr) => _isFr ? fr : en;
+
+    [DllImport("dwmapi.dll", PreserveSig = true)]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
+    private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+
+    private void SetTitleBarDark()
+    {
+        if (Environment.OSVersion.Version.Build >= 22000)
+        {
+            int value = _isDark ? 1 : 0;
+            DwmSetWindowAttribute(Handle, DWMWA_USE_IMMERSIVE_DARK_MODE, ref value, sizeof(int));
+        }
+    }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        SetTitleBarDark();
+    }
+
+    private void ApplyTheme()
+    {
+        BackColor = BgColor;
+        _scroll.BackColor = BgColor;
+        SetTitleBarDark();
+
+        foreach (Control c in GetAllControls(_scroll))
+        {
+            switch (c)
+            {
+                case Label lbl:
+                    lbl.BackColor = Color.Transparent;
+                    if (lbl == _lblInstallStatus) break;
+                    if (lbl == _lblTitle || lbl == _lblModeLabel || lbl == _lblColFormat || lbl == _lblColDown || lbl == _lblColOpt || lbl == _lblColWebP || lbl == _lblColJpg)
+                    {
+                        lbl.ForeColor = lbl == _lblTitle ? TextColor : DimText;
+                        if (lbl == _lblModeLabel) lbl.ForeColor = TextColor;
+                    }
+                    else if (lbl != _lblUpdateHint)
+                    {
+                        lbl.ForeColor = TextColor;
+                    }
+                    break;
+                case CheckBox chk:
+                    chk.ForeColor = TextColor;
+                    chk.BackColor = Color.Transparent;
+                    break;
+                case TextBox txt:
+                    txt.BackColor = InputBg;
+                    txt.ForeColor = TextColor;
+                    break;
+                case ComboBox cbo:
+                    cbo.BackColor = InputBg;
+                    cbo.ForeColor = TextColor;
+                    break;
+                case NumericUpDown nud:
+                    nud.BackColor = InputBg;
+                    nud.ForeColor = TextColor;
+                    break;
+                case RoundedPanel card:
+                    card.BackColor = CardColor;
+                    card.BorderColor = BorderColor;
+                    break;
+            }
+        }
+
+        foreach (SizeChip chip in _sizesFlow.Controls.OfType<SizeChip>())
+        {
+            chip.BackColor = ChipBg;
+        }
+
+        RefreshAll();
+    }
+
+    private static IEnumerable<Control> GetAllControls(Control root)
+    {
+        foreach (Control c in root.Controls)
+        {
+            yield return c;
+            foreach (Control child in GetAllControls(c))
+                yield return child;
+        }
+    }
 
     private void BuildUI()
     {
@@ -117,7 +224,7 @@ public sealed class SettingsForm : Form
         BackColor = BgColor;
         AutoScaleMode = AutoScaleMode.Dpi;
 
-        _scroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
+        _scroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = BgColor };
         Controls.Add(_scroll);
 
         int y = 18;
@@ -135,12 +242,27 @@ public sealed class SettingsForm : Form
         };
         _scroll.Controls.Add(_lblTitle);
 
+        var btnTheme = new Button
+        {
+            Text = _isDark ? "☀" : "☾",
+            Font = F(9),
+            Size = new Size(26, 26),
+            Location = new Point(w - 40, y + 2),
+            FlatStyle = FlatStyle.Flat,
+            ForeColor = DimText,
+            BackColor = CardColor,
+            Cursor = Cursors.Hand,
+        };
+        btnTheme.FlatAppearance.BorderColor = BorderColor;
+        btnTheme.Click += BtnTheme_Click;
+        _scroll.Controls.Add(btnTheme);
+
         _lnkLang = new LinkLabel
         {
             Text = T("En français", "En anglais"),
             Font = F(9),
             AutoSize = true,
-            Location = new Point(w - 60, y + 8),
+            Location = new Point(w - 10, y + 6),
             LinkColor = AccentColor,
             ActiveLinkColor = AccentColor,
         };
@@ -195,6 +317,8 @@ public sealed class SettingsForm : Form
             DropDownStyle = ComboBoxStyle.DropDownList,
             Location = new Point(355, 12),
             Size = new Size(115, 24),
+            BackColor = InputBg,
+            ForeColor = TextColor,
         };
         _cboMode.Items.AddRange([
             T("Longest side", "Plus long côté"),
@@ -326,6 +450,7 @@ public sealed class SettingsForm : Form
         ForeColor = TextColor,
         AutoSize = true,
         Location = new Point(x, y),
+        BackColor = Color.Transparent,
     };
 
     private static Button Btn(string text, int x, int y, int w, int h)
@@ -365,6 +490,8 @@ public sealed class SettingsForm : Form
             Location = new Point(196, y + 1),
             BorderStyle = BorderStyle.FixedSingle,
             PlaceholderText = T("Custom path (optional)", "Chemin personnalisé (optionnel)"),
+            BackColor = InputBg,
+            ForeColor = TextColor,
         };
         parent.Controls.Add(pathBox);
 
@@ -524,7 +651,7 @@ public sealed class SettingsForm : Form
 
     private void AddSizeChip(int size)
     {
-        var chip = new SizeChip(size);
+        var chip = new SizeChip(size, _isDark);
         chip.RemoveClicked += (_, _) =>
         {
             _sizesFlow.Controls.Remove(chip);
@@ -572,10 +699,19 @@ public sealed class SettingsForm : Form
         if (_registry.IsRegistered())
             _registry.Register(_settings, Application.ExecutablePath);
         // Rebuild UI with new language
+        SuspendLayout();
         Controls.Clear();
         BuildUI();
         LoadSettings();
         RefreshAll();
+        ResumeLayout(true);
+    }
+
+    private void BtnTheme_Click(object? sender, EventArgs e)
+    {
+        _isDark = !_isDark;
+        SaveSettings();
+        ApplyTheme();
     }
 
     private void BrowseExe(TextBox target)
@@ -638,39 +774,41 @@ public sealed class SettingsForm : Form
         public int SizeValue { get; }
         public event EventHandler? RemoveClicked;
 
-        public SizeChip(int size)
+        public SizeChip(int size, bool dark)
         {
             SizeValue = size;
-            Size = new Size(84, 26);
+            Size = new Size(88, 26);
             Margin = new Padding(2, 3, 2, 3);
-            BackColor = ChipBg;
+            BackColor = dark ? ChipBgDark : ChipBgLight;
             Cursor = Cursors.Default;
 
             Controls.Add(new Label
             {
-                Text = $"{size}",
+                Text = $"{size}px",
                 Font = new("Segoe UI", 8.25f),
                 ForeColor = AccentColor,
                 AutoSize = false,
-                Size = new Size(54, 20),
+                Size = new Size(58, 20),
                 Location = new Point(8, 3),
                 TextAlign = ContentAlignment.MiddleLeft,
+                BackColor = Color.Transparent,
             });
 
             var x = new Label
             {
                 Text = "×",
                 Font = new("Segoe UI", 8.5f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(140, 140, 140),
+                ForeColor = dark ? Color.FromArgb(160, 160, 160) : Color.FromArgb(140, 140, 140),
                 AutoSize = false,
                 Size = new Size(18, 20),
-                Location = new Point(62, 3),
+                Location = new Point(66, 3),
                 TextAlign = ContentAlignment.MiddleCenter,
                 Cursor = Cursors.Hand,
+                BackColor = Color.Transparent,
             };
             x.Click += (_, _) => RemoveClicked?.Invoke(this, EventArgs.Empty);
             x.MouseEnter += (_, _) => x.ForeColor = RedColor;
-            x.MouseLeave += (_, _) => x.ForeColor = Color.FromArgb(140, 140, 140);
+            x.MouseLeave += (_, _) => x.ForeColor = dark ? Color.FromArgb(160, 160, 160) : Color.FromArgb(140, 140, 140);
             Controls.Add(x);
         }
     }
