@@ -27,7 +27,6 @@ public sealed class AppSettings
     public DownscaleMode DownscaleMode { get; set; } = DownscaleMode.LongestSide;
     public List<int> AvailableSizes { get; set; } = [512, 1024];
     public string Language { get; set; } = "en";
-    public bool DarkMode { get; set; } = false;
 
     public FormatSettings Jpg { get; set; } = new()
     {
