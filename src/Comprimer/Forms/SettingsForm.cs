@@ -113,7 +113,7 @@ public sealed class SettingsForm : Form
     private void BuildUI()
     {
         Text = "Comprimer";
-        ClientSize = new Size(640, 900);
+        ClientSize = new Size(640, 920);
         MinimumSize = new Size(600, 720);
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.Sizable;
@@ -151,7 +151,7 @@ public sealed class SettingsForm : Form
         _lnkLang.Click += LnkLang_Click;
         _scroll.Controls.Add(_lnkLang);
 
-        y += 48;
+        y += 60;
         _lblSubtitle = new Label
         {
             Text = T("Image compression & conversion for Explorer",
@@ -166,7 +166,7 @@ public sealed class SettingsForm : Form
 
         // 1. Explorer Integration
         _lblSecExplorer = SectionLabel(_scroll, T("Explorer Integration", "Intégration Explorer"), ref y, left);
-        var card1 = Card(_scroll, ref y, left, w, 96);
+        var card1 = Card(_scroll, ref y, left, w, 108);
 
         _lblInstallStatus = new Label { Font = F(9.5f, FontStyle.Bold), AutoSize = true, Location = new Point(16, 12) };
         card1.Controls.Add(_lblInstallStatus);
@@ -174,11 +174,11 @@ public sealed class SettingsForm : Form
         _lblUpdateHint = new Label { Font = F(8.5f), ForeColor = RedColor, AutoSize = true, Location = new Point(16, 32), Visible = false };
         card1.Controls.Add(_lblUpdateHint);
 
-        _btnToggleInstall = Btn("", 16, 56, 210, 30);
+        _btnToggleInstall = Btn("", 16, 56, 210, 36);
         _btnToggleInstall.Click += BtnToggleInstall_Click;
         card1.Controls.Add(_btnToggleInstall);
 
-        _btnApply = Btn(T("Apply", "Appliquer"), 236, 56, 100, 30);
+        _btnApply = Btn(T("Apply", "Appliquer"), 236, 56, 100, 36);
         _btnApply.Click += BtnApply_Click;
         card1.Controls.Add(_btnApply);
 
@@ -212,7 +212,7 @@ public sealed class SettingsForm : Form
 
         // 3. Downscale Sizes
         _lblSecSizes = SectionLabel(_scroll, T("Downscale Sizes (px)", "Tailles de réduction (px)"), ref y, left);
-        var card3 = Card(_scroll, ref y, left, w, 90);
+        var card3 = Card(_scroll, ref y, left, w, 94);
 
         _sizesFlow = new FlowLayoutPanel
         {
@@ -238,7 +238,7 @@ public sealed class SettingsForm : Form
         };
         card3.Controls.Add(_nudNewSize);
 
-        var btnAdd = Btn(T("Add", "Ajouter"), 476, 20, 68, 30);
+        var btnAdd = Btn(T("Add", "Ajouter"), 476, 20, 68, 34);
         btnAdd.Click += BtnAddSize_Click;
         card3.Controls.Add(btnAdd);
 
@@ -276,7 +276,7 @@ public sealed class SettingsForm : Form
 
         // 5. External Tools
         _lblSecTools = SectionLabel(_scroll, T("External Tools", "Outils externes"), ref y, left);
-        var card5 = Card(_scroll, ref y, left, w, 150);
+        var card5 = Card(_scroll, ref y, left, w, 168);
 
         int ty = 14;
         AddToolRow(card5, "pngquant", ref ty, out _lblPngquantStatus, out _txtPngquant, out _btnBrowsePngquant);
@@ -368,7 +368,7 @@ public sealed class SettingsForm : Form
         pathBox = new TextBox
         {
             Font = F(8.5f),
-            Size = new Size(230, 24),
+            Size = new Size(230, 28),
             Location = new Point(210, y + 2),
             BorderStyle = BorderStyle.FixedSingle,
             PlaceholderText = T("Custom path (optional)", "Chemin personnalisé (optionnel)"),
@@ -381,8 +381,8 @@ public sealed class SettingsForm : Form
         {
             Text = "…",
             Font = F(9),
-            Size = new Size(28, 26),
-            Location = new Point(448, y + 2),
+            Size = new Size(28, 32),
+            Location = new Point(448, y + 0),
             FlatStyle = FlatStyle.Flat,
             ForeColor = DimText,
             BackColor = CardColor,
