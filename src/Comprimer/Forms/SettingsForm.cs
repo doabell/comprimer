@@ -7,44 +7,23 @@ using Comprimer.Services;
 namespace Comprimer.Forms;
 
 /// <summary>
-/// Main settings window for Comprimer — modern single-page layout with FR/EN toggle.
+/// Main settings window for Comprimer — single-page layout with FR/EN toggle.
 /// </summary>
 public sealed class SettingsForm : Form
 {
-    // Light theme
-    private static readonly Color LightBg = Color.FromArgb(243, 243, 243);
-    private static readonly Color LightCard = Color.White;
-    private static readonly Color LightText = Color.FromArgb(24, 24, 24);
-    private static readonly Color LightDim = Color.FromArgb(110, 110, 110);
-    private static readonly Color LightBorder = Color.FromArgb(220, 220, 220);
-    private static readonly Color LightInputBg = Color.White;
-    private static readonly Color LightChipBg = Color.FromArgb(232, 242, 252);
-    private static readonly Color LightDangerBg = Color.FromArgb(253, 231, 233);
-
-    // Dark theme
-    private static readonly Color DarkBg = Color.FromArgb(32, 32, 32);
-    private static readonly Color DarkCard = Color.FromArgb(45, 45, 45);
-    private static readonly Color DarkText = Color.FromArgb(240, 240, 240);
-    private static readonly Color DarkDim = Color.FromArgb(160, 160, 160);
-    private static readonly Color DarkBorder = Color.FromArgb(70, 70, 70);
-    private static readonly Color DarkInputBg = Color.FromArgb(55, 55, 55);
-    private static readonly Color DarkChipBg = Color.FromArgb(35, 60, 85);
-    private static readonly Color DarkDangerBg = Color.FromArgb(80, 35, 38);
-
+    // Colors
+    private static readonly Color BgColor = Color.FromArgb(32, 32, 32);
+    private static readonly Color CardColor = Color.FromArgb(45, 45, 45);
+    private static readonly Color TextColor = Color.FromArgb(240, 240, 240);
+    private static readonly Color DimText = Color.FromArgb(160, 160, 160);
+    private static readonly Color BorderColor = Color.FromArgb(70, 70, 70);
+    private static readonly Color InputBg = Color.FromArgb(55, 55, 55);
     private static readonly Color AccentColor = Color.FromArgb(0, 120, 212);
     private static readonly Color GreenColor = Color.FromArgb(16, 124, 16);
     private static readonly Color RedColor = Color.FromArgb(196, 43, 28);
+    private static readonly Color ChipBg = Color.FromArgb(35, 60, 85);
+    private static readonly Color DangerBg = Color.FromArgb(80, 35, 38);
     private static readonly Color DangerText = Color.FromArgb(196, 43, 28);
-
-    private bool _isDark;
-    private Color BgColor => _isDark ? DarkBg : LightBg;
-    private Color CardColor => _isDark ? DarkCard : LightCard;
-    private Color TextColor => _isDark ? DarkText : LightText;
-    private Color DimText => _isDark ? DarkDim : LightDim;
-    private Color BorderColor => _isDark ? DarkBorder : LightBorder;
-    private Color InputBg => _isDark ? DarkInputBg : LightInputBg;
-    private Color ChipBg => _isDark ? DarkChipBg : LightChipBg;
-    private Color DangerBg => _isDark ? DarkDangerBg : LightDangerBg;
 
     private readonly ConfigService _config;
     private readonly ExecutableService _exe;
@@ -118,7 +97,6 @@ public sealed class SettingsForm : Form
         _registry = new RegistryService();
         _settings = _config.Load();
         _isFr = _settings.Language == "fr";
-        _isDark = _settings.DarkMode;
 
         BuildUI();
         LoadSettings();
@@ -127,97 +105,28 @@ public sealed class SettingsForm : Form
 
     private static Font F(float size, FontStyle style = FontStyle.Regular) => new("Segoe UI", size, style);
 
-    // ── Localization ────────────────────────────────────────
+    // Localization
     private string T(string en, string fr) => _isFr ? fr : en;
 
     [DllImport("dwmapi.dll", PreserveSig = true)]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
     private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
 
-    private void SetTitleBarDark()
-    {
-        if (Environment.OSVersion.Version.Build >= 22000)
-        {
-            int value = _isDark ? 1 : 0;
-            DwmSetWindowAttribute(Handle, DWMWA_USE_IMMERSIVE_DARK_MODE, ref value, sizeof(int));
-        }
-    }
-
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
-        SetTitleBarDark();
-    }
-
-    private void ApplyTheme()
-    {
-        BackColor = BgColor;
-        _scroll.BackColor = BgColor;
-        SetTitleBarDark();
-
-        foreach (Control c in GetAllControls(_scroll))
+        if (Environment.OSVersion.Version.Build >= 22000)
         {
-            switch (c)
-            {
-                case Label lbl:
-                    lbl.BackColor = Color.Transparent;
-                    if (lbl == _lblInstallStatus) break;
-                    if (lbl == _lblTitle || lbl == _lblModeLabel || lbl == _lblColFormat || lbl == _lblColDown || lbl == _lblColOpt || lbl == _lblColWebP || lbl == _lblColJpg)
-                    {
-                        lbl.ForeColor = lbl == _lblTitle ? TextColor : DimText;
-                        if (lbl == _lblModeLabel) lbl.ForeColor = TextColor;
-                    }
-                    else if (lbl != _lblUpdateHint)
-                    {
-                        lbl.ForeColor = TextColor;
-                    }
-                    break;
-                case CheckBox chk:
-                    chk.ForeColor = TextColor;
-                    chk.BackColor = Color.Transparent;
-                    break;
-                case TextBox txt:
-                    txt.BackColor = InputBg;
-                    txt.ForeColor = TextColor;
-                    break;
-                case ComboBox cbo:
-                    cbo.BackColor = InputBg;
-                    cbo.ForeColor = TextColor;
-                    break;
-                case NumericUpDown nud:
-                    nud.BackColor = InputBg;
-                    nud.ForeColor = TextColor;
-                    break;
-                case RoundedPanel card:
-                    card.BackColor = CardColor;
-                    card.BorderColor = BorderColor;
-                    break;
-            }
-        }
-
-        foreach (SizeChip chip in _sizesFlow.Controls.OfType<SizeChip>())
-        {
-            chip.BackColor = ChipBg;
-        }
-
-        RefreshAll();
-    }
-
-    private static IEnumerable<Control> GetAllControls(Control root)
-    {
-        foreach (Control c in root.Controls)
-        {
-            yield return c;
-            foreach (Control child in GetAllControls(c))
-                yield return child;
+            int useDark = 1;
+            DwmSetWindowAttribute(Handle, DWMWA_USE_IMMERSIVE_DARK_MODE, ref useDark, sizeof(int));
         }
     }
 
     private void BuildUI()
     {
         Text = "Comprimer";
-        ClientSize = new Size(520, 780);
-        MinimumSize = new Size(520, 700);
+        ClientSize = new Size(520, 740);
+        MinimumSize = new Size(500, 680);
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
@@ -231,7 +140,7 @@ public sealed class SettingsForm : Form
         int w = 480;
         int left = 20;
 
-        // ─── Header ─────────────────────────────────────────
+        // Header
         _lblTitle = new Label
         {
             Text = "Comprimer",
@@ -242,27 +151,12 @@ public sealed class SettingsForm : Form
         };
         _scroll.Controls.Add(_lblTitle);
 
-        var btnTheme = new Button
-        {
-            Text = _isDark ? "☀" : "☾",
-            Font = F(9),
-            Size = new Size(26, 26),
-            Location = new Point(w - 40, y + 2),
-            FlatStyle = FlatStyle.Flat,
-            ForeColor = DimText,
-            BackColor = CardColor,
-            Cursor = Cursors.Hand,
-        };
-        btnTheme.FlatAppearance.BorderColor = BorderColor;
-        btnTheme.Click += BtnTheme_Click;
-        _scroll.Controls.Add(btnTheme);
-
         _lnkLang = new LinkLabel
         {
             Text = T("En français", "En anglais"),
             Font = F(9),
             AutoSize = true,
-            Location = new Point(w - 10, y + 6),
+            Location = new Point(w - 60, y + 8),
             LinkColor = AccentColor,
             ActiveLinkColor = AccentColor,
         };
@@ -282,14 +176,14 @@ public sealed class SettingsForm : Form
         _scroll.Controls.Add(_lblSubtitle);
         y += 32;
 
-        // ─── 1. Explorer Integration ────────────────────────
+        // 1. Explorer Integration
         _lblSecExplorer = SectionLabel(_scroll, T("Explorer Integration", "Intégration Explorer"), ref y, left);
         var card1 = Card(_scroll, ref y, left, w, 86);
 
         _lblInstallStatus = new Label { Font = F(9), AutoSize = true, Location = new Point(16, 10) };
         card1.Controls.Add(_lblInstallStatus);
 
-        _lblUpdateHint = new Label { Font = F(8), ForeColor = DimText, AutoSize = true, Location = new Point(16, 30), Visible = false };
+        _lblUpdateHint = new Label { Font = F(8), ForeColor = RedColor, AutoSize = true, Location = new Point(16, 30), Visible = false };
         card1.Controls.Add(_lblUpdateHint);
 
         _btnToggleInstall = Btn("", 16, 54, 200, 26);
@@ -300,7 +194,7 @@ public sealed class SettingsForm : Form
         _btnApply.Click += BtnApply_Click;
         card1.Controls.Add(_btnApply);
 
-        // ─── 2. Options ─────────────────────────────────────
+        // 2. Options
         _lblSecOptions = SectionLabel(_scroll, T("Options", "Options"), ref y, left);
         var card2 = Card(_scroll, ref y, left, w, 80);
 
@@ -328,7 +222,7 @@ public sealed class SettingsForm : Form
         _cboMode.SelectedIndex = 0;
         card2.Controls.Add(_cboMode);
 
-        // ─── 3. Downscale Sizes ─────────────────────────────
+        // 3. Downscale Sizes
         _lblSecSizes = SectionLabel(_scroll, T("Downscale Sizes (px)", "Tailles de réduction (px)"), ref y, left);
         var card3 = Card(_scroll, ref y, left, w, 52);
 
@@ -351,6 +245,8 @@ public sealed class SettingsForm : Form
             Maximum = 10000,
             Value = 1024,
             BorderStyle = BorderStyle.FixedSingle,
+            BackColor = InputBg,
+            ForeColor = TextColor,
         };
         card3.Controls.Add(_nudNewSize);
 
@@ -359,11 +255,10 @@ public sealed class SettingsForm : Form
         btnAdd.Click += BtnAddSize_Click;
         card3.Controls.Add(btnAdd);
 
-        // ─── 4. Format Operations ───────────────────────────
+        // 4. Format Operations
         _lblSecFormats = SectionLabel(_scroll, T("Format Operations", "Opérations par format"), ref y, left);
         var card4 = Card(_scroll, ref y, left, w, 124);
 
-        // Column headers
         _lblColFormat = Lbl(T("Format", "Format"), F(8, FontStyle.Bold), DimText, 16, 10);
         _lblColDown = Lbl(T("Downscale", "Réduire"), F(8, FontStyle.Bold), DimText, 100, 10);
         _lblColOpt = Lbl(T("Optimize", "Optimiser"), F(8, FontStyle.Bold), DimText, 195, 10);
@@ -392,7 +287,7 @@ public sealed class SettingsForm : Form
         card4.Controls.Add(Lbl("WebP", F(8.5f, FontStyle.Bold), TextColor, 16, ry + 2));
         _chkWebPDown = Chk("", 120, ry); card4.Controls.Add(_chkWebPDown);
 
-        // ─── 5. External Tools ──────────────────────────────
+        // 5. External Tools
         _lblSecTools = SectionLabel(_scroll, T("External Tools", "Outils externes"), ref y, left);
         var card5 = Card(_scroll, ref y, left, w, 130);
 
@@ -402,7 +297,7 @@ public sealed class SettingsForm : Form
         AddToolRow(card5, "cjpeg", ref ty, out _lblCjpegStatus, out _txtCjpeg, out _btnBrowseCjpeg, T("cjpeg from mozjpeg", "cjpeg de mozjpeg"));
     }
 
-    // ── UI Helpers ──────────────────────────────────────────
+    // UI Helpers
 
     private static Label Lbl(string text, Font font, Color color, int x, int y) => new()
     {
@@ -514,7 +409,7 @@ public sealed class SettingsForm : Form
         y += 38;
     }
 
-    // ── Data Load / Save ────────────────────────────────────
+    // Data Load / Save
 
     private void LoadSettings()
     {
@@ -570,7 +465,7 @@ public sealed class SettingsForm : Form
         _config.Save(_settings);
     }
 
-    // ── Refresh ─────────────────────────────────────────────
+    // Refresh
 
     private void RefreshAll()
     {
@@ -595,11 +490,9 @@ public sealed class SettingsForm : Form
             _btnToggleInstall.FlatAppearance.BorderColor = AccentColor;
         }
 
-        // Apply button styling
         _btnApply.Text = T("Apply", "Appliquer");
         _btnApply.Visible = installed;
 
-        // Check if registered path differs from current exe
         _lblUpdateHint.Visible = false;
         if (installed)
         {
@@ -610,7 +503,6 @@ public sealed class SettingsForm : Form
                 _lblUpdateHint.Text = T(
                     "⚠ Registered path differs — click Apply to update",
                     "⚠ Chemin enregistré différent — cliquez Appliquer pour mettre à jour");
-                _lblUpdateHint.ForeColor = RedColor;
                 _lblUpdateHint.Visible = true;
             }
         }
@@ -651,7 +543,7 @@ public sealed class SettingsForm : Form
 
     private void AddSizeChip(int size)
     {
-        var chip = new SizeChip(size, _isDark);
+        var chip = new SizeChip(size);
         chip.RemoveClicked += (_, _) =>
         {
             _sizesFlow.Controls.Remove(chip);
@@ -660,7 +552,7 @@ public sealed class SettingsForm : Form
         _sizesFlow.Controls.Add(chip);
     }
 
-    // ── Events ──────────────────────────────────────────────
+    // Events
 
     private void BtnAddSize_Click(object? sender, EventArgs e)
     {
@@ -695,23 +587,15 @@ public sealed class SettingsForm : Form
     {
         _isFr = !_isFr;
         SaveSettings();
-        // Re-register context menus with updated language if installed
         if (_registry.IsRegistered())
             _registry.Register(_settings, Application.ExecutablePath);
-        // Rebuild UI with new language
+
         SuspendLayout();
         Controls.Clear();
         BuildUI();
         LoadSettings();
         RefreshAll();
         ResumeLayout(true);
-    }
-
-    private void BtnTheme_Click(object? sender, EventArgs e)
-    {
-        _isDark = !_isDark;
-        SaveSettings();
-        ApplyTheme();
     }
 
     private void BrowseExe(TextBox target)
@@ -732,11 +616,11 @@ public sealed class SettingsForm : Form
         base.OnFormClosing(e);
     }
 
-    // ── Inner Controls ──────────────────────────────────────
+    // Inner Controls
 
     private sealed class RoundedPanel : Panel
     {
-        public Color BorderColor { get; set; } = Color.FromArgb(220, 220, 220);
+        public Color BorderColor { get; set; } = Color.FromArgb(70, 70, 70);
         private const int R = 6;
 
         public RoundedPanel()
@@ -774,21 +658,21 @@ public sealed class SettingsForm : Form
         public int SizeValue { get; }
         public event EventHandler? RemoveClicked;
 
-        public SizeChip(int size, bool dark)
+        public SizeChip(int size)
         {
             SizeValue = size;
-            Size = new Size(88, 26);
+            Size = new Size(84, 26);
             Margin = new Padding(2, 3, 2, 3);
-            BackColor = dark ? ChipBgDark : ChipBgLight;
+            BackColor = ChipBg;
             Cursor = Cursors.Default;
 
             Controls.Add(new Label
             {
-                Text = $"{size}px",
+                Text = $"{size}",
                 Font = new("Segoe UI", 8.25f),
                 ForeColor = AccentColor,
                 AutoSize = false,
-                Size = new Size(58, 20),
+                Size = new Size(54, 20),
                 Location = new Point(8, 3),
                 TextAlign = ContentAlignment.MiddleLeft,
                 BackColor = Color.Transparent,
@@ -798,17 +682,17 @@ public sealed class SettingsForm : Form
             {
                 Text = "×",
                 Font = new("Segoe UI", 8.5f, FontStyle.Bold),
-                ForeColor = dark ? Color.FromArgb(160, 160, 160) : Color.FromArgb(140, 140, 140),
+                ForeColor = Color.FromArgb(140, 140, 140),
                 AutoSize = false,
                 Size = new Size(18, 20),
-                Location = new Point(66, 3),
+                Location = new Point(62, 3),
                 TextAlign = ContentAlignment.MiddleCenter,
                 Cursor = Cursors.Hand,
                 BackColor = Color.Transparent,
             };
             x.Click += (_, _) => RemoveClicked?.Invoke(this, EventArgs.Empty);
             x.MouseEnter += (_, _) => x.ForeColor = RedColor;
-            x.MouseLeave += (_, _) => x.ForeColor = dark ? Color.FromArgb(160, 160, 160) : Color.FromArgb(140, 140, 140);
+            x.MouseLeave += (_, _) => x.ForeColor = Color.FromArgb(140, 140, 140);
             Controls.Add(x);
         }
     }
