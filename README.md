@@ -116,7 +116,7 @@ Unit and regression tests cover settings compatibility, explicit saving, CLI val
 cargo test --locked --test real_encoders -- --ignored
 ```
 
-One GitHub Actions workflow runs formatting, Clippy, tests, and a release build on Windows. CI uploads the executable and symbols separately; `v*` tags publish those same artifacts as a release ZIP and a symbols ZIP. Real encoder tests are opt-in and do not run in CI.
+One GitHub Actions workflow runs formatting, Clippy, tests, and a release build on Windows. Pull requests trigger CI once per update, and newer updates cancel older PR runs. Push runs are limited to `main` and `v*` tags; tags publish the executable and symbols as separate release ZIPs. Real encoder tests are opt-in and do not run in CI.
 
 For an isolated native UI screenshot (no settings or Explorer changes), use `cargo run --example ui_snapshot -- main en dark 820 570 out/main.png`. Panels are `main`, `tools`, `log`, and `preview`; choose `en`/`fr` and `dark`/`light`.
 
