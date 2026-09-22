@@ -78,3 +78,24 @@ fn panics_are_logged_even_with_logging_disabled() {
     assert!(text.contains("PANIC:"));
     assert!(text.contains("intentional panic diagnostic"));
 }
+
+#[test]
+fn cli_messages_use_the_application_log_filter() {
+    let dir = tempfile::tempdir().unwrap();
+    let settings = dir.path().join("settings.json");
+    for (argument, success, message) in [
+        ("--diagnostics", true, "Command started"),
+        ("--invalid-command", false, "ERROR"),
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_Comprimer"))
+            .arg(argument)
+            .env("COMPRIMER_CONFIG", &settings)
+            .env("RUST_LOG", "comprimer=info")
+            .output()
+            .unwrap();
+        assert_eq!(output.status.success(), success);
+        let log = fs::read_to_string(dir.path().join("comprimer.log")).unwrap();
+        assert!(log.contains(message), "{log}");
+        assert!(!settings.exists(), "Diagnostics must not save settings");
+    }
+}

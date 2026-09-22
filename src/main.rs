@@ -14,7 +14,7 @@ use comprimer::{
 fn main() {
     let gui = std::env::args_os().len() == 1;
     if let Err(error) = run() {
-        tracing::error!("{error:#}");
+        tracing::error!(target: "comprimer", "{error:#}");
         eprintln!("Comprimer: {error:#}");
         if gui {
             rfd::MessageDialog::new()
@@ -32,9 +32,9 @@ fn run() -> Result<()> {
     diagnostics::init(&path)?;
     let args: Vec<_> = std::env::args_os().skip(1).collect();
     let command = cli::parse(&args)?;
-    let span = tracing::info_span!("command", command = ?command);
+    let span = tracing::info_span!(target: "comprimer", "command", command = ?command);
     let _entered = span.enter();
-    tracing::info!("Command started");
+    tracing::info!(target: "comprimer", "Command started");
     if command == Command::Help {
         println!("{}", cli::HELP);
         return Ok(());
@@ -63,7 +63,7 @@ fn run() -> Result<()> {
         Command::Diagnostics => {
             let report = ui::diagnostic_report(&settings, &path);
             println!("{report}");
-            tracing::info!("{report}");
+            tracing::info!(target: "comprimer", "{report}");
         }
         Command::Settings | Command::Help => unreachable!(),
     }
