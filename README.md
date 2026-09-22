@@ -1,77 +1,134 @@
 # Comprimer
 
-A Windows 10/11 right-click context menu tool for image compression and conversion. No popup windows or terminal — operations run silently in the background.
+A Windows 10/11 image compression and conversion tool. Right-click an image in Explorer to process it silently; open `Comprimer.exe` for the native [egui/eframe](https://github.com/emilk/egui) settings app.
 
-## Features
+Written in Rust. No .NET runtime is needed. Windows x64 is the supported release target.
 
-- **Right-click context menu** for JPG, JPEG, PNG, and WebP files
-- **Downscale** images to configurable sizes (defaults: 512px, 1024px)
-- **Downscale mode**: limit by longest side, width only, or height only
-- **Convert to WebP** from JPG/PNG using cwebp
-- **Convert to JPG** from PNG using mozjpeg (cjpeg)
-- **Settings GUI** to configure operations, menu style, and executable paths
-- **Nested or flat** context menu layout
-- **Overwrite or suffix** mode (toggle from context menu or settings)
-- **Single executable** — no DLLs to manage
+## Install
 
-## Requirements
+1. Download `Comprimer-…-win-x64.zip` from [Releases](../../releases).
+2. Extract it to a permanent location, then run `Comprimer.exe`.
+3. Open **Tools** to detect or select encoder executables.
+4. Enable **Explorer**, then click **Save**. No administrator privileges are needed.
 
-- Windows 10 or later
-- [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) (x64)
-
-## Installation
-
-1. Download the latest release from [Releases](../../releases)
-2. Extract to a permanent location (e.g., `C:\Program Files\Comprimer\`)
-3. Run `Comprimer.exe` to open settings
-4. Click **Add to Explorer** to register the context menu
+On Windows 11, the shortcuts appear under **Show more options**. Move the executable only after updating its selected path and refreshing the menu.
 
 ## Settings
 
-| Format    | Operations Available                        |
-|-----------|---------------------------------------------|
-| JPG/JPEG  | Downscale, Convert to WebP                  |
-| PNG       | Downscale, Convert to WebP, Convert to JPG  |
-| WebP      | Downscale                                   |
+- **Sizes:** enable Auto or resizing for each preset. Original-size Auto has its own switch.
+- **Quality:** adjust PNG, JPG, and WebP quality.
+- **Formats:** choose individual actions for each source format.
+- **Preview:** inspect the pending Explorer menu for JPG, PNG, or WebP.
+- **Tools:** edit executable paths. The button shows how many encoders are available.
+- **Log:** view activity, copy diagnostics, or open egui's inspector.
 
-- **Nested menu**: Groups all operations under a "Comprimer" submenu
-- **Overwrite original**: Replaces the original file instead of creating a suffixed copy
-- **Downscale sizes**: Add/remove target sizes (e.g., 512px, 1024px)
-- **Downscale mode**: Longest side (default), width only, or height only
+The single settings screen supports English/French, dark/light themes, DPI scaling, and scrolling. **Save** and **Ctrl+S** apply preferences and the selected Explorer menu state through the same action. Closing the window discards unsaved edits. Enable **Explorer** to install or refresh the menu, or clear it to remove the menu, then save. Errors appear under **Log**. The menu preview uses pending settings, reflects flat or nested menus, and never changes Explorer itself.
 
-### External Tools
+Settings remain in `%APPDATA%\Comprimer\settings.json`. Existing C# settings, encoder paths, language, quality values, and per-size switches are read directly. Old Auto switches are migrated without enabling previously disabled shortcuts. Explicitly cleared or missing encoder paths never silently fall back to PATH. **Detect** updates the selected path; **Browse** opens a native file picker.
 
-External tools for optimized encoding. If detected in PATH, they're used automatically. You can also set a custom path to override PATH detection.
+| Source | Individual actions |
+| --- | --- |
+| JPG / JPEG | Resize, optimize with mozjpeg, convert to WebP |
+| PNG | Resize, optimize with pngquant, convert to JPG or WebP |
+| WebP | Resize |
 
-| Tool     | Purpose                    |
-|----------|----------------------------|
-| pngquant | PNG optimization           |
-| cwebp    | WebP encoding              |
-| cjpeg    | JPEG encoding via mozjpeg  |
+Auto is available for every source format, independently of those switches. Each size has separate **Auto** and **Resize** controls. Sizes can limit the longest side, width, or height; small images are never enlarged. Resize skips images that already fit.
 
-### Output Naming
+## Auto and quality
 
-When **Overwrite original** is off:
-- Downscale: `photo-1024px.jpg`
-- Convert: `photo.webp` (adds `-1`, `-2` only if file exists)
+Auto encodes PNG, JPG, and WebP at the same dimensions and compares actual file sizes:
 
-## Building
+- PNG smaller than JPG: keep **PNG only**.
+- PNG equal to or larger than JPG: keep **JPG and WebP**.
 
-```bash
-dotnet restore
-dotnet build --configuration Release
-dotnet publish src/Comprimer/Comprimer.csproj -c Release -r win-x64 --no-self-contained -p:PublishSingleFile=true
+Defaults are PNG minimum/target **65–80**, JPG **85**, and WebP **80**. If pngquant cannot meet the quality floor, the lossless PNG is retained. JPG composites transparency on white; PNG and WebP preserve it. Quality controls apply to Auto, resizing, optimization, and conversion. PNG/JPG resizing can use built-in encoders when the external tool is missing. Auto requires all three external encoders.
+
+| Executable | Purpose |
+| --- | --- |
+| `pngquant.exe` | PNG optimization |
+| `cjpeg.exe` (mozjpeg) | JPG encoding |
+| `cwebp.exe` (libwebp) | WebP encoding |
+| `dwebp.exe` (libwebp) | Decode WebP sources |
+
+`dwebp` detection checks beside the selected `cwebp`, then PATH. Animated WebP is unsupported. External tools are not bundled.
+
+## Output files
+
+Outputs stay beside the source. Without overwrite:
+
+- Resize: `photo-1024px.jpg`
+- Conversion: `photo.webp`
+- PNG / JPG optimization: `photo-fs8.png` / `photo-moz.jpg`
+- Auto with resize: `photo-1024px.png`, or `photo-1024px.jpg` and `photo-1024px.webp`
+- Auto at original size: `photo.png`, or `photo.jpg` and `photo.webp`
+
+Collisions, including the source itself, receive `-1`, `-2`, etc. With overwrite enabled, outputs use the original basename without the resize suffix; `.jpeg` sources keep that extension when JPG replaces them. Files belonging to unselected formats are kept. Candidates are staged before publication; encoder errors leave originals untouched, and publication failures roll back earlier outputs. A process crash or power loss during a multi-file publication is not a filesystem transaction.
+
+## Command line and debugging
+
+Explorer uses the same commands as before:
+
+```powershell
+.\Comprimer.exe --auto "C:\Images\photo.png"
+.\Comprimer.exe --auto 1024 "C:\Images\photo.png"
+.\Comprimer.exe --downscale 512 "C:\Images\photo.jpg"
+.\Comprimer.exe --to-webp "C:\Images\photo.png"
+.\Comprimer.exe --to-jpg "C:\Images\photo.png"
+.\Comprimer.exe --pngquant "C:\Images\photo.png"
+.\Comprimer.exe --mozjpeg "C:\Images\photo.jpg"
+.\Comprimer.exe --toggle-overwrite
+.\Comprimer.exe --diagnostics
 ```
 
-## Development
+Release builds have no console window. Failures return a nonzero exit code and log a reason to `%APPDATA%\Comprimer\comprimer.log`, including encoder stderr and timeouts. Logs rotate during writes at 2 MiB and retain two backups. A process lock keeps concurrent Explorer commands from mixing records or racing rotation. Records include process IDs; panic reports include backtraces even when `RUST_LOG=off`.
 
-- .NET 8.0 SDK
-- Windows Forms (Windows only)
-- System.Drawing.Common for image processing
+If the normal log cannot be written, logging falls back to `%TEMP%\Comprimer\logs-…`; if both locations fail, a bounded in-memory buffer keeps recent activity while the app remains usable. **Log** reports the fallback, **Folder** opens its location, and **Copy** includes it in diagnostics. Recent log reads, individual records, and encoder stderr are bounded. Use **Log → Refresh** for recent activity. Logs contain local paths; review reports before sharing them.
 
-```bash
-dotnet test
+Debug builds also write to the terminal:
+
+```powershell
+$env:RUST_LOG = 'comprimer=debug'
+$env:RUST_BACKTRACE = '1'
+cargo run
+cargo run -- --auto 1024 "C:\Images\photo.png"
 ```
+
+To test with separate preferences and logs, set `$env:COMPRIMER_CONFIG = "$PWD\out\settings.json"`. This changes the config/log location; Explorer registration still targets your normal per-user menu. Automated registry tests use separate temporary registry keys.
+
+## Build and test
+
+Install Rust through rustup and Visual Studio Build Tools (**Desktop development with C++**, including the Windows SDK). `rust-toolchain.toml` pins Rust **1.97.1** with the MSVC target for reproducible local and CI builds. From a Windows terminal:
+
+```powershell
+cargo fmt --all -- --check
+cargo clippy --locked --all-targets -- -D warnings
+cargo test --locked --all-targets
+cargo build --locked --release
+```
+
+The executable is `target\release\Comprimer.exe`; matching debug symbols are in `Comprimer.pdb`. Use a Rust-capable debugger such as CodeLLDB or the Visual Studio debugger to set breakpoints in a debug build.
+
+Release builds use size optimization and full link-time optimization, with the image-processing crate kept at full speed optimization. WebP codecs are external (`cwebp`/`dwebp`); the Rust WebP codec is only enabled for tests. Debug symbols remain separate, and panic backtraces and accessibility remain enabled. The measured x64 executable is about **7.3 MiB**, or **3.4 MiB** in the release ZIP; sizes vary with the toolchain.
+
+Unit and regression tests cover settings compatibility, explicit saving, CLI validation, quality, Auto selection, dimensions, collisions, encoder failures, publication rollback, isolated Explorer registration, and egui rendering in both languages/themes. Logging tests cover rotation, concurrent processes, fallback, bounded buffers, and panic reports. Run the real encoder integration suite after installing all four tools on PATH:
+
+```powershell
+cargo test --locked --test real_encoders -- --ignored
+```
+
+One GitHub Actions workflow uses only GitHub-owned actions, pinned to full release commit SHAs. Rust is installed with rustup. Pull requests run formatting, tests, and Clippy for changed Rust/build inputs, without compiling a release package. Documentation-only changes skip Rust checks. New updates cancel older PR runs.
+
+Check and release builds have separate Cargo caches, saved immediately after each successful build stage. CI omits debug/test symbols to reduce linking and cache costs; release PDBs remain enabled. Build timing reports are uploaded for inspection. The first build for new dependencies or a new compiler still needs to populate its cache.
+
+`main` builds the Windows package when its inputs change; manual runs also build a package. A `v*` tag must match `Cargo.toml` and point to a commit on `main`. Tags reuse artifacts from successful main CI at that exact commit, checking executable/symbol hashes, or build from source if artifacts are unavailable. The executable and symbols are attached as separate ZIPs to a **draft release**; publishing remains manual. Real encoder tests are opt-in and do not run in CI.
+
+CI helper tests run with `node --test scripts/ci.test.mjs` using Node's built-in test runner. They cover changed-path selection, artifact provenance, interrupted downloads, package integrity, and draft-only release behavior.
+
+For an isolated native UI screenshot (no settings or Explorer changes), use `cargo run --example ui_snapshot -- main en dark 820 570 out/main.png`. Panels are `main`, `tools`, `log`, and `preview`; choose `en`/`fr` and `dark`/`light`.
+
+## Code layout
+
+`src/ui.rs` owns the egui settings UI. `settings.rs`/`config.rs` handle compatible JSON persistence; `registry.rs` generates and installs Explorer menus; `images.rs` stages and processes images; `tools.rs` runs encoders; `cli.rs` parses commands; `diagnostics.rs` sets up logging. Image processing and registry behavior are testable without launching a window.
 
 ## License
 
