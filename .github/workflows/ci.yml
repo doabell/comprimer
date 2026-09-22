@@ -1,4 +1,4 @@
-name: Windows CI and release
+name: Windows CI and draft release
 
 on:
   push:
@@ -10,44 +10,163 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+env:
+  CARGO_INCREMENTAL: "0"
+  CARGO_TERM_COLOR: always
+  # CI test symbols inflate linking time and cache size; release PDBs remain enabled.
+  CARGO_PROFILE_DEV_DEBUG: "0"
+  CARGO_PROFILE_TEST_DEBUG: "0"
 
 jobs:
   windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          targets: x86_64-pc-windows-msvc
-          components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
-      - name: Check formatting
-        run: cargo fmt --all -- --check
-      - name: Clippy
-        run: cargo clippy --locked --all-targets -- -D warnings
-      - name: Test
-        run: cargo test --locked --all-targets
-      - name: Build Windows executable
-        run: cargo build --locked --release
-      - name: Package
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Test CI helpers
+        run: node --test scripts/ci.test.mjs
+
+      - name: Select checks from changed paths
+        id: plan
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/ci.mjs plan
+
+      - name: Verify release tag
+        if: startsWith(github.ref, 'refs/tags/')
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Path publish -Force | Out-Null
-          Copy-Item target/release/Comprimer.exe, README.md, LICENSE -Destination publish
-      - uses: actions/upload-artifact@v4
+          $version = (Select-String -Path Cargo.toml -Pattern '^version = "([^"]+)"' | Select-Object -First 1).Matches.Groups[1].Value
+          if ($env:GITHUB_REF_NAME -ne "v$version") { throw 'Release tag must match Cargo.toml.' }
+          git merge-base --is-ancestor $env:GITHUB_SHA origin/main
+          if ($LASTEXITCODE -ne 0) { throw 'Release tag must point to a commit on main.' }
+
+      - name: Reuse verified main package
+        id: reuse
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/ci.mjs reuse
+
+      - name: Set up pinned Rust toolchain
+        if: (steps.plan.outputs.rust == 'true' || steps.plan.outputs.package == 'true') && steps.reuse.outputs.reused != 'true'
+        shell: pwsh
+        run: |
+          $toolchain = (Select-String -Path rust-toolchain.toml -Pattern '^channel = "([^"]+)"').Matches.Groups[1].Value
+          rustup toolchain install $toolchain --profile minimal --component rustfmt --component clippy --target x86_64-pc-windows-msvc
+          if ($LASTEXITCODE -ne 0) { throw 'Rust toolchain setup failed.' }
+          rustc --version
+          cargo --version
+
+      - name: Restore check cache
+        id: verify-cache
+        if: steps.plan.outputs.rust == 'true' && steps.reuse.outputs.reused != 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/debug
+          key: rust-verify-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml') }}-${{ hashFiles('Cargo.lock', 'Cargo.toml') }}
+          restore-keys: |
+            rust-verify-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml') }}-
+
+      - name: Check formatting
+        if: steps.plan.outputs.rust == 'true' && steps.reuse.outputs.reused != 'true'
+        run: cargo fmt --all -- --check
+
+      - name: Test
+        id: test
+        if: steps.plan.outputs.rust == 'true' && steps.reuse.outputs.reused != 'true'
+        run: cargo test --locked --all-targets --timings
+
+      - name: Clippy
+        if: steps.plan.outputs.rust == 'true' && steps.reuse.outputs.reused != 'true'
+        run: cargo clippy --locked --all-targets --timings -- -D warnings
+
+      # Save before packaging, retaining both test code and Clippy's metadata.
+      - name: Save check cache
+        if: ${{ !cancelled() && steps.test.outcome == 'success' && steps.verify-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/debug
+          key: ${{ steps.verify-cache.outputs.cache-primary-key }}
+
+      - name: Restore release cache
+        id: release-cache
+        if: steps.plan.outputs.package == 'true' && steps.reuse.outputs.reused != 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/release
+          key: rust-release-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml') }}-${{ hashFiles('Cargo.lock', 'Cargo.toml') }}
+          restore-keys: |
+            rust-release-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml') }}-
+
+      - name: Build Windows executable
+        id: build
+        if: steps.plan.outputs.package == 'true' && steps.reuse.outputs.reused != 'true'
+        run: cargo build --locked --release --timings
+
+      - name: Save release cache
+        if: steps.build.outcome == 'success' && steps.release-cache.outputs.cache-hit != 'true' && !startsWith(github.ref, 'refs/tags/')
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/release
+          key: ${{ steps.release-cache.outputs.cache-primary-key }}
+
+      - name: Package
+        if: steps.plan.outputs.package == 'true' && steps.reuse.outputs.reused != 'true'
+        run: ./scripts/package.ps1
+
+      - name: Verify package
+        if: steps.plan.outputs.package == 'true'
+        run: node scripts/ci.mjs verify-package
+
+      - name: Upload Windows package
+        if: steps.plan.outputs.package == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: Comprimer-win-x64
           path: publish/
           if-no-files-found: error
-      - uses: actions/upload-artifact@v4
+          retention-days: 30
+
+      - name: Upload debug symbols
+        if: steps.plan.outputs.package == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: Comprimer-debug-symbols-win-x64
-          path: target/release/Comprimer.pdb
+          path: symbols/
           if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload Rust build timings
+        if: ${{ !cancelled() && (steps.test.outcome == 'success' || steps.build.outcome == 'success') }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rust-build-timings
+          path: target/cargo-timings/*.html
+          if-no-files-found: ignore
+          retention-days: 14
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -55,24 +174,22 @@ jobs:
     runs-on: windows-latest
     permissions:
       contents: write
+      actions: read
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: Comprimer-win-x64
           path: publish
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: Comprimer-debug-symbols-win-x64
           path: symbols
-      - name: Package release
-        shell: pwsh
+      - name: Verify package
+        run: node scripts/ci.mjs verify-package
+      - name: Create draft release
         env:
-          RELEASE_TAG: ${{ github.ref_name }}
-        run: |
-          Compress-Archive -Path publish/* -DestinationPath "Comprimer-$env:RELEASE_TAG-win-x64.zip"
-          Compress-Archive -Path symbols/* -DestinationPath "Comprimer-$env:RELEASE_TAG-symbols-win-x64.zip"
-      - uses: softprops/action-gh-release@v2
-        with:
-          files: Comprimer-*.zip
-          fail_on_unmatched_files: true
-          generate_release_notes: true
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/draft-release.ps1

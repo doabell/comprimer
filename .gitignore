@@ -1,5 +1,6 @@
 /target/
 /publish/
+/symbols/
 /out/
 /artifacts/
 *.log

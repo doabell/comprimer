@@ -97,7 +97,7 @@ To test with separate preferences and logs, set `$env:COMPRIMER_CONFIG = "$PWD\o
 
 ## Build and test
 
-Install Rust **1.95+** with the MSVC toolchain and Visual Studio Build Tools (**Desktop development with C++**, including the Windows SDK). From a Windows terminal:
+Install Rust through rustup and Visual Studio Build Tools (**Desktop development with C++**, including the Windows SDK). `rust-toolchain.toml` pins Rust **1.97.1** with the MSVC target for reproducible local and CI builds. From a Windows terminal:
 
 ```powershell
 cargo fmt --all -- --check
@@ -116,7 +116,13 @@ Unit and regression tests cover settings compatibility, explicit saving, CLI val
 cargo test --locked --test real_encoders -- --ignored
 ```
 
-One GitHub Actions workflow runs formatting, Clippy, tests, and a release build on Windows. Pull requests trigger CI once per update, and newer updates cancel older PR runs. Push runs are limited to `main` and `v*` tags; tags publish the executable and symbols as separate release ZIPs. Real encoder tests are opt-in and do not run in CI.
+One GitHub Actions workflow uses only GitHub-owned actions, pinned to full release commit SHAs. Rust is installed with rustup. Pull requests run formatting, tests, and Clippy for changed Rust/build inputs, without compiling a release package. Documentation-only changes skip Rust checks. New updates cancel older PR runs.
+
+Check and release builds have separate Cargo caches, saved immediately after each successful build stage. CI omits debug/test symbols to reduce linking and cache costs; release PDBs remain enabled. Build timing reports are uploaded for inspection. The first build for new dependencies or a new compiler still needs to populate its cache.
+
+`main` builds the Windows package when its inputs change; manual runs also build a package. A `v*` tag must match `Cargo.toml` and point to a commit on `main`. Tags reuse artifacts from successful main CI at that exact commit, checking executable/symbol hashes, or build from source if artifacts are unavailable. The executable and symbols are attached as separate ZIPs to a **draft release**; publishing remains manual. Real encoder tests are opt-in and do not run in CI.
+
+CI helper tests run with `node --test scripts/ci.test.mjs` using Node's built-in test runner. They cover changed-path selection, artifact provenance, interrupted downloads, package integrity, and draft-only release behavior.
 
 For an isolated native UI screenshot (no settings or Explorer changes), use `cargo run --example ui_snapshot -- main en dark 820 570 out/main.png`. Panels are `main`, `tools`, `log`, and `preview`; choose `en`/`fr` and `dark`/`light`.
 
