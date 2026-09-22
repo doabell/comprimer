@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Resources\app.ico" />
+    <EmbeddedResource Include="Resources\icon-C.png" />
   </ItemGroup>
 
   <ItemGroup>

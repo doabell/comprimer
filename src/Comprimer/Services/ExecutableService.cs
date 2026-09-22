@@ -5,47 +5,70 @@ namespace Comprimer.Services;
 /// <summary>
 /// Detects and manages external image processing executables.
 /// </summary>
-public sealed class ExecutableService
+public interface IExecutableService
+{
+    string? Resolve(string executableName, string? explicitPath);
+    int? Run(string executable, string arguments, int timeoutMs = 60_000);
+}
+
+public sealed class ExecutableService : IExecutableService
 {
     /// <summary>
     /// Checks if a given executable name is found in the system PATH.
     /// </summary>
-    public bool IsInPath(string executableName)
+    public bool IsInPath(string executableName) => FindInPath(executableName) != null;
+
+    /// <summary>Detects a tool on PATH and returns its actual absolute path.</summary>
+    public string? FindInPath(string executableName)
     {
         var pathVar = Environment.GetEnvironmentVariable("PATH");
         if (string.IsNullOrEmpty(pathVar))
-            return false;
+            return null;
 
         var paths = pathVar.Split(Path.PathSeparator);
         foreach (var dir in paths)
         {
-            var fullPath = Path.Combine(dir, executableName);
-            if (File.Exists(fullPath)) return true;
-            if (File.Exists(fullPath + ".exe")) return true;
+            if (string.IsNullOrWhiteSpace(dir)) continue;
+            try
+            {
+                var fullPath = Path.GetFullPath(Path.Combine(dir.Trim().Trim('"'), executableName));
+                if (File.Exists(fullPath)) return fullPath;
+                if (File.Exists(fullPath + ".exe")) return fullPath + ".exe";
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or IOException) { }
         }
-        return false;
-    }
-
-    /// <summary>
-    /// Resolves the path to an executable. If the explicit path is set, uses that.
-    /// Otherwise tries PATH. Returns null if not found.
-    /// </summary>
-    public string? Resolve(string executableName, string? explicitPath)
-    {
-        if (!string.IsNullOrWhiteSpace(explicitPath) && File.Exists(explicitPath))
-            return explicitPath;
-
-        if (IsInPath(executableName))
-            return executableName;
-
         return null;
     }
 
     /// <summary>
-    /// Runs an external executable with the given arguments, waiting for completion.
-    /// Returns true if process exited with code 0.
+    /// A configured path is authoritative, even when missing or explicitly cleared.
+    /// Null retains PATH lookup for settings created before explicit paths were saved.
     /// </summary>
-    public bool Run(string executable, string arguments, int timeoutMs = 60_000)
+    public string? Resolve(string executableName, string? explicitPath)
+    {
+        if (explicitPath == null) return FindInPath(executableName);
+        return ExistingPath(explicitPath);
+    }
+
+    internal static string? ExistingPath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return null;
+        var cleaned = path.Trim().Trim('"');
+        return Path.IsPathFullyQualified(cleaned) && File.Exists(cleaned) ? Path.GetFullPath(cleaned) : null;
+    }
+
+    public string? DetectWebPDecoder(string? encoderPath)
+    {
+        var encoder = ExistingPath(encoderPath);
+        var sibling = encoder == null ? null : ExistingPath(Path.Combine(Path.GetDirectoryName(encoder)!, "dwebp.exe"));
+        return sibling ?? FindInPath("dwebp");
+    }
+
+    /// <summary>
+    /// Runs an external executable with the given arguments, waiting for completion.
+    /// Returns the exit code, or null if the process cannot complete.
+    /// </summary>
+    public int? Run(string executable, string arguments, int timeoutMs = 60_000)
     {
         try
         {
@@ -60,12 +83,23 @@ public sealed class ExecutableService
                 RedirectStandardError = true,
             };
             process.Start();
-            process.WaitForExit(timeoutMs);
-            return process.ExitCode == 0;
+            // Drain both pipes while waiting: encoders can otherwise block on a full buffer.
+            process.OutputDataReceived += (_, _) => { };
+            process.ErrorDataReceived += (_, _) => { };
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+            if (!process.WaitForExit(timeoutMs))
+            {
+                process.Kill(entireProcessTree: true);
+                process.WaitForExit();
+                return null;
+            }
+            process.WaitForExit();
+            return process.ExitCode;
         }
         catch
         {
-            return false;
+            return null;
         }
     }
 }

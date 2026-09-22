@@ -6,7 +6,15 @@ namespace Comprimer.Services;
 /// <summary>
 /// Manages Windows Explorer context menu registration via the registry.
 /// </summary>
-public sealed class RegistryService
+public interface IRegistryService
+{
+    void Register(AppSettings settings, string currentExePath);
+    void Unregister();
+    bool IsRegistered();
+    string? GetRegisteredExePath();
+}
+
+public sealed class RegistryService : IRegistryService
 {
     private const string BaseKeyPath = @"Software\Classes\SystemFileAssociations";
     private const string MenuName = "Comprimer";
@@ -15,16 +23,14 @@ public sealed class RegistryService
     private static readonly string[] PngExtensions = [".png"];
     private static readonly string[] WebPExtensions = [".webp"];
 
-    // System icons
-    private static readonly string SystemDir = Environment.GetFolderPath(Environment.SpecialFolder.System);
-    private static readonly string PifmgrPath = Path.Combine(SystemDir, "pifmgr.dll");
-    private static readonly string BeachBallIcon = $"{PifmgrPath},-8";     // beach ball icon for top-level
-
     /// <summary>
     /// Registers context menu entries for all enabled formats and operations.
     /// </summary>
     public void Register(AppSettings settings, string exePath)
     {
+        // Resolve and validate before removing any existing shortcuts.
+        exePath = GetRegistrationPath(settings, exePath, GetRegisteredExePath());
+        settings.ComprimerPath = exePath;
         Unregister();
 
         var allEntries = BuildMenuEntries(settings);
@@ -39,6 +45,13 @@ public sealed class RegistryService
                     RegisterFlatEntry(ext, entry, exePath);
             }
         }
+    }
+
+    internal static string GetRegistrationPath(AppSettings settings, string currentExePath, string? registeredExePath)
+    {
+        var selected = settings.ComprimerPath ?? registeredExePath ?? currentExePath;
+        return ExecutableService.ExistingPath(selected)
+            ?? throw new FileNotFoundException("Choose Comprimer.exe or use Detect.", selected);
     }
 
     /// <summary>
@@ -75,62 +88,40 @@ public sealed class RegistryService
     /// </summary>
     public bool IsRegistered()
     {
-        var testPath = $@"{BaseKeyPath}\.jpg\shell\{MenuName}";
-        using var key = Registry.CurrentUser.OpenSubKey(testPath);
-        if (key != null) return true;
-
-        var shellPath = $@"{BaseKeyPath}\.jpg\shell";
-        using var shellKey = Registry.CurrentUser.OpenSubKey(shellPath);
-        if (shellKey == null) return false;
-        return shellKey.GetSubKeyNames().Any(n =>
-            n.StartsWith($"{MenuName}.", StringComparison.OrdinalIgnoreCase));
+        foreach (var ext in JpgExtensions.Concat(PngExtensions).Concat(WebPExtensions))
+        {
+            using var shell = Registry.CurrentUser.OpenSubKey($@"{BaseKeyPath}\{ext}\shell");
+            if (shell?.GetSubKeyNames().Any(name => name.Equals(MenuName, StringComparison.OrdinalIgnoreCase) ||
+                name.StartsWith($"{MenuName}.", StringComparison.OrdinalIgnoreCase)) == true) return true;
+        }
+        return false;
     }
 
-    /// <summary>
-    /// Gets the exe path currently registered in the context menu, if any.
-    /// </summary>
+    /// <summary>Finds the configured command across every supported extension and menu style.</summary>
     public string? GetRegisteredExePath()
     {
-        // Check nested first
-        var nestedCmd = $@"{BaseKeyPath}\.jpg\shell\{MenuName}\shell";
-        try
+        foreach (var ext in JpgExtensions.Concat(PngExtensions).Concat(WebPExtensions))
         {
-            using var shellKey = Registry.CurrentUser.OpenSubKey(nestedCmd);
-            if (shellKey != null)
+            using var shell = Registry.CurrentUser.OpenSubKey($@"{BaseKeyPath}\{ext}\shell");
+            if (shell == null) continue;
+            using var nested = shell.OpenSubKey($@"{MenuName}\shell");
+            if (nested != null)
             {
-                foreach (var subName in shellKey.GetSubKeyNames())
+                foreach (var name in nested.GetSubKeyNames())
                 {
-                    var cmdPath = $@"{nestedCmd}\{subName}\command";
-                    using var cmdKey = Registry.CurrentUser.OpenSubKey(cmdPath);
-                    var val = cmdKey?.GetValue("") as string;
-                    if (val != null)
-                        return ExtractExePath(val);
+                    using var command = nested.OpenSubKey($@"{name}\command");
+                    if (command?.GetValue("") is string text && ExtractExePath(text) is string path) return path;
                 }
             }
-        }
-        catch { }
-
-        // Check flat entries
-        var flatShell = $@"{BaseKeyPath}\.jpg\shell";
-        try
-        {
-            using var shellKey = Registry.CurrentUser.OpenSubKey(flatShell);
-            if (shellKey == null) return null;
-            foreach (var subName in shellKey.GetSubKeyNames())
+            foreach (var name in shell.GetSubKeyNames().Where(name => name.StartsWith($"{MenuName}.", StringComparison.OrdinalIgnoreCase)))
             {
-                if (!subName.StartsWith($"{MenuName}.", StringComparison.OrdinalIgnoreCase))
-                    continue;
-                var cmdPath = $@"{flatShell}\{subName}\command";
-                using var cmdKey = Registry.CurrentUser.OpenSubKey(cmdPath);
-                var val = cmdKey?.GetValue("") as string;
-                if (val != null)
-                    return ExtractExePath(val);
+                using var command = shell.OpenSubKey($@"{name}\command");
+                if (command?.GetValue("") is string text && ExtractExePath(text) is string path) return path;
             }
         }
-        catch { }
-
         return null;
     }
+
 
     private static string? ExtractExePath(string commandLine)
     {
@@ -144,22 +135,45 @@ public sealed class RegistryService
         return null;
     }
 
-    private static List<MenuEntry> BuildMenuEntries(AppSettings settings)
+    internal static List<MenuEntry> BuildMenuEntries(AppSettings settings)
     {
         var entries = new List<MenuEntry>();
         bool fr = settings.Language == "fr";
 
         string Tr(string en, string frText) => fr ? frText : en;
+        var sizes = settings.AvailableSizes.Where(size => size > 0).Distinct().Order().ToArray();
+        var extensions = JpgExtensions.Concat(PngExtensions).Concat(WebPExtensions).ToArray();
+
+        if (settings.AutoMode)
+        {
+            entries.Add(new MenuEntry
+            {
+                Id = "Auto",
+                Label = Tr("Auto · original size", "Auto · taille d'origine"),
+                Command = "--auto",
+                Extensions = extensions,
+            });
+        }
+        foreach (var size in sizes.Where(size => settings.GetSizeActions(size).AutoResize))
+        {
+            entries.Add(new MenuEntry
+            {
+                Id = $"Auto{size}",
+                Label = Tr($"Auto + resize {size}px", $"Auto + réduire {size}px"),
+                Command = $"--auto {size}",
+                Extensions = extensions,
+            });
+        }
 
         // JPG operations
         if (settings.Jpg.Downscale)
         {
-            foreach (var size in settings.AvailableSizes)
+            foreach (var size in sizes.Where(size => settings.GetSizeActions(size).Resize))
             {
                 entries.Add(new MenuEntry
                 {
                     Id = $"Downscale{size}",
-                    Label = Tr($"Downscale to {size}px", $"Réduire à {size}px"),
+                    Label = Tr($"Resize only {size}px", $"Réduire seulement {size}px"),
                     Command = $"--downscale {size}",
                     Extensions = JpgExtensions,
                 });
@@ -189,12 +203,12 @@ public sealed class RegistryService
         // PNG operations
         if (settings.Png.Downscale)
         {
-            foreach (var size in settings.AvailableSizes)
+            foreach (var size in sizes.Where(size => settings.GetSizeActions(size).Resize))
             {
                 entries.Add(new MenuEntry
                 {
                     Id = $"Downscale{size}",
-                    Label = Tr($"Downscale to {size}px", $"Réduire à {size}px"),
+                    Label = Tr($"Resize only {size}px", $"Réduire seulement {size}px"),
                     Command = $"--downscale {size}",
                     Extensions = PngExtensions,
                 });
@@ -234,12 +248,12 @@ public sealed class RegistryService
         // WebP operations
         if (settings.WebP.Downscale)
         {
-            foreach (var size in settings.AvailableSizes)
+            foreach (var size in sizes.Where(size => settings.GetSizeActions(size).Resize))
             {
                 entries.Add(new MenuEntry
                 {
                     Id = $"Downscale{size}",
-                    Label = Tr($"Downscale to {size}px", $"Réduire à {size}px"),
+                    Label = Tr($"Resize only {size}px", $"Réduire seulement {size}px"),
                     Command = $"--downscale {size}",
                     Extensions = WebPExtensions,
                 });
@@ -254,7 +268,7 @@ public sealed class RegistryService
         var menuPath = $@"{BaseKeyPath}\{ext}\shell\{MenuName}";
         using var menuKey = Registry.CurrentUser.CreateSubKey(menuPath);
         menuKey.SetValue("MUIVerb", MenuName);
-        menuKey.SetValue("Icon", BeachBallIcon);
+        menuKey.SetValue("Icon", $"\"{exePath}\",0");
         menuKey.SetValue("SubCommands", "");
 
         var shellPath = $@"{menuPath}\shell";
@@ -274,7 +288,7 @@ public sealed class RegistryService
 
         using var key = Registry.CurrentUser.CreateSubKey(keyPath);
         key.SetValue("", $"{MenuName}: {entry.Label}");
-        key.SetValue("Icon", BeachBallIcon);
+        key.SetValue("Icon", $"\"{exePath}\",0");
 
         using var cmdKey = Registry.CurrentUser.CreateSubKey($@"{keyPath}\command");
         cmdKey.SetValue("", $"\"{exePath}\" {entry.Command} \"%1\"");
@@ -292,7 +306,7 @@ public sealed class RegistryService
         }
     }
 
-    private sealed class MenuEntry
+    internal sealed class MenuEntry
     {
         public required string Id { get; init; }
         public required string Label { get; init; }

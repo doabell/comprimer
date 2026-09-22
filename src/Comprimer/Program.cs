@@ -28,6 +28,12 @@ internal static class Program
         var command = args[0].ToLowerInvariant();
         switch (command)
         {
+            case "--auto":
+                if (args.Length == 2 && File.Exists(args[1]))
+                    imageService.Auto(args[1]);
+                else if (args.Length >= 3 && int.TryParse(args[1], out var autoSize) && File.Exists(args[2]))
+                    imageService.Auto(args[2], autoSize);
+                break;
             case "--downscale":
                 HandleDownscale(args, imageService);
                 break;

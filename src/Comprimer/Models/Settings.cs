@@ -26,7 +26,11 @@ public sealed class AppSettings
     public int DownscaleSize { get; set; } = 1024;
     public DownscaleMode DownscaleMode { get; set; } = DownscaleMode.LongestSide;
     public List<int> AvailableSizes { get; set; } = [512, 1024];
+    public Dictionary<int, SizeActionSettings> SizeActions { get; set; } = [];
     public string Language { get; set; } = "en";
+    public bool AutoMode { get; set; } = true;
+    public string? ComprimerPath { get; set; }
+    public EncoderSettings Encoders { get; set; } = new();
 
     public FormatSettings Jpg { get; set; } = new()
     {
@@ -49,6 +53,20 @@ public sealed class AppSettings
     };
 
     public ExecutableSettings Executables { get; set; } = new();
+
+    internal SizeActionSettings GetSizeActions(int size)
+    {
+        if (!SizeActions.TryGetValue(size, out var actions))
+            SizeActions[size] = actions = new SizeActionSettings();
+        return actions;
+    }
+}
+
+/// <summary>Independent Explorer shortcuts for a shared size preset.</summary>
+public sealed class SizeActionSettings
+{
+    public bool AutoResize { get; set; } = true;
+    public bool Resize { get; set; } = true;
 }
 
 /// <summary>
@@ -70,4 +88,20 @@ public sealed class ExecutableSettings
     public string? PngquantPath { get; set; }
     public string? Img2WebPPath { get; set; }
     public string? CjpegPath { get; set; }
+    public string? DwebpPath { get; set; }
+}
+
+/// <summary>Quality settings shared by resizing, optimization, conversion and Auto.</summary>
+public sealed class EncoderSettings
+{
+    private int _pngMinQuality = 65;
+    private int _pngQuality = 80;
+    private int _jpgQuality = 85;
+    private int _webPQuality = 80;
+
+    public int PngMinQuality { get => _pngMinQuality; set => _pngMinQuality = Math.Clamp(value, 0, 100); }
+    public int PngQuality { get => _pngQuality; set => _pngQuality = Math.Clamp(value, 0, 100); }
+    public int JpgQuality { get => _jpgQuality; set => _jpgQuality = Math.Clamp(value, 0, 100); }
+    public int WebPQuality { get => _webPQuality; set => _webPQuality = Math.Clamp(value, 0, 100); }
+    internal int EffectivePngMinQuality => Math.Min(PngMinQuality, PngQuality);
 }
