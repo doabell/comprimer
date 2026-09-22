@@ -51,6 +51,18 @@ fn all_extensions_support_flat_nested_and_preserve_other_apps() {
             Some(exe.clone())
         );
         for extension in [".jpg", ".jpeg", ".png", ".webp"] {
+            for entry in registry::preview_entries(&settings, extension) {
+                let verb = if nested {
+                    format!(r"Comprimer\shell\{}", entry.id)
+                } else {
+                    format!("Comprimer.{}", entry.id)
+                };
+                let key = hkcu
+                    .open_subkey(format!(r"{}\{extension}\shell\{verb}", fixture.key))
+                    .unwrap();
+                let label: String = key.get_value(if nested { "MUIVerb" } else { "" }).unwrap();
+                assert_eq!(entry.label, label);
+            }
             let suffix = if nested {
                 r"Comprimer\shell\Auto\command"
             } else {
@@ -126,5 +138,20 @@ fn menu_respects_independent_toggles_and_translates_labels() {
             .iter()
             .filter(|e| e.command == "--downscale 1024")
             .all(|e| !e.extensions.contains(&".jpg"))
+    );
+    let png = registry::preview_entries(&settings, ".png");
+    assert!(png.iter().any(|e| e.id == "ToJpg"));
+    assert!(png.iter().any(|e| e.id == "Pngquant"));
+    assert!(!png.iter().any(|e| e.id == "Mozjpeg"));
+    settings.png.convert_to_jpg = false;
+    assert!(
+        !registry::preview_entries(&settings, ".png")
+            .iter()
+            .any(|e| e.id == "ToJpg")
+    );
+    assert!(
+        !registry::preview_entries(&settings, ".webp")
+            .iter()
+            .any(|e| e.id == "ToWebP")
     );
 }

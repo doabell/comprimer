@@ -113,6 +113,22 @@ pub fn entries(settings: &Settings) -> Vec<MenuEntry> {
     entries
 }
 
+/// Draft menu labels, using the same definitions and verb names as Explorer.
+/// Building a preview never reads or writes the registry.
+pub fn preview_entries(settings: &Settings, extension: &str) -> Vec<MenuEntry> {
+    let mut result: Vec<_> = entries(settings)
+        .into_iter()
+        .filter(|entry| entry.extensions.contains(&extension))
+        .collect();
+    result.sort_by(|a, b| a.id.cmp(&b.id));
+    if !settings.nested_menu {
+        for entry in &mut result {
+            entry.label = format!("Comprimer: {}", entry.label);
+        }
+    }
+    result
+}
+
 pub struct ExplorerRegistry {
     base: String,
 }

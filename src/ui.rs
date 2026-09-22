@@ -1,6 +1,6 @@
 use crate::{
     config, diagnostics,
-    registry::ExplorerRegistry,
+    registry::{self, ExplorerRegistry},
     settings::{DownscaleMode, Settings},
     tools,
 };
@@ -26,6 +26,8 @@ pub struct SettingsApp {
     log: String,
     tools_open: bool,
     log_open: bool,
+    preview_open: bool,
+    preview_extension: &'static str,
     inspect: bool,
     logo: Option<egui::TextureHandle>,
 }
@@ -65,6 +67,7 @@ impl SettingsApp {
     pub fn with_panel(mut self, panel: &str) -> Self {
         self.tools_open = panel == "tools";
         self.log_open = panel == "log";
+        self.preview_open = panel == "preview";
         self
     }
 
@@ -110,6 +113,8 @@ impl SettingsApp {
             log,
             tools_open: false,
             log_open: false,
+            preview_open: false,
+            preview_extension: ".png",
             inspect: false,
             logo: None,
         })
@@ -165,6 +170,8 @@ impl SettingsApp {
         let ctx = ui.ctx().clone();
         let fr = self.settings.language == "fr";
         self.load_logo(&ctx);
+        let mut save_requested =
+            ctx.input_mut(|input| input.consume_key(egui::Modifiers::CTRL, egui::Key::S));
 
         egui::Panel::top("header")
             .resizable(false)
@@ -231,9 +238,10 @@ impl SettingsApp {
                                 )
                                 .fill(ACCENT),
                             )
+                            .on_hover_text("Ctrl+S")
                             .clicked()
                         {
-                            self.save_feedback(fr);
+                            save_requested = true;
                         }
                         if self.dirty() {
                             ui.weak(t(fr, "Unsaved", "Modifié"));
@@ -261,6 +269,9 @@ impl SettingsApp {
                                     "Apply with Save",
                                     "Appliquer avec Enregistrer",
                                 ));
+                            if ui.button(t(fr, "Preview", "Aperçu")).clicked() {
+                                self.preview_open = true;
+                            }
                             ui.add_space(14.0);
                             ui.checkbox(
                                 &mut self.settings.nested_menu,
@@ -289,12 +300,60 @@ impl SettingsApp {
 
         self.tool_window(&ctx, fr);
         self.log_window(&ctx, fr);
+        self.preview_window(&ctx, fr);
         if self.inspect {
             egui::Window::new("egui")
                 .open(&mut self.inspect)
                 .vscroll(true)
                 .show(&ctx, |ui| ctx.inspection_ui(ui));
         }
+        // Save after every editor has processed this frame, including tool paths.
+        if save_requested {
+            self.save_feedback(self.settings.language == "fr");
+        }
+    }
+
+    fn preview_window(&mut self, ctx: &egui::Context, fr: bool) {
+        egui::Window::new(t(fr, "Menu preview", "Aperçu du menu"))
+            .id(egui::Id::new("menu-preview"))
+            .open(&mut self.preview_open)
+            .collapsible(false)
+            .default_size([420.0, 350.0])
+            .vscroll(true)
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    for (extension, name) in [(".jpg", "JPG"), (".png", "PNG"), (".webp", "WebP")] {
+                        ui.selectable_value(&mut self.preview_extension, extension, name);
+                    }
+                    if !self.explorer_enabled {
+                        ui.weak(t(fr, "Explorer off", "Explorer désactivé"));
+                    }
+                });
+                ui.separator();
+                let entries = registry::preview_entries(&self.settings, self.preview_extension);
+                if entries.is_empty() {
+                    ui.weak(t(fr, "No actions", "Aucune action"));
+                } else {
+                    egui::Frame::popup(ui.style())
+                        .inner_margin(12)
+                        .show(ui, |ui| {
+                            ui.set_min_width(ui.available_width());
+                            if self.settings.nested_menu {
+                                ui.strong("Comprimer");
+                                ui.separator();
+                                ui.indent("submenu", |ui| {
+                                    for entry in entries {
+                                        ui.label(entry.label);
+                                    }
+                                });
+                            } else {
+                                for entry in entries {
+                                    ui.label(entry.label);
+                                }
+                            }
+                        });
+                }
+            });
     }
 
     fn sizes(&mut self, ui: &mut egui::Ui, fr: bool) {
@@ -766,7 +825,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn closing_and_keyboard_shortcuts_do_not_save_edits() {
+    fn closing_does_not_save_edits() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("settings.json");
         let initial = Settings::default();
@@ -782,13 +841,6 @@ mod tests {
         app.explorer_enabled = true;
         let ctx = egui::Context::default();
         let mut input = egui::RawInput::default();
-        input.events.push(egui::Event::Key {
-            key: egui::Key::S,
-            physical_key: None,
-            pressed: true,
-            repeat: false,
-            modifiers: egui::Modifiers::CTRL,
-        });
         input
             .viewports
             .get_mut(&egui::ViewportId::ROOT)
@@ -827,7 +879,17 @@ mod tests {
         app.settings.encoders.jpg_quality = 72;
         assert!(!path.exists());
         assert!(!app.registry.is_registered().unwrap());
-        app.save().unwrap();
+        let ctx = egui::Context::default();
+        let mut input = egui::RawInput::default();
+        input.events.push(egui::Event::Key {
+            key: egui::Key::S,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::CTRL,
+        });
+        let mut output = ctx.run_ui(input, |ui| app.draw(ui));
+        output.textures_delta.clear();
         assert_eq!(config::load(&path).unwrap().encoders.jpg_quality, 72);
         assert!(app.registry.is_registered().unwrap());
         assert!(!app.dirty());
@@ -847,7 +909,7 @@ mod tests {
                     dark_mode: dark,
                     ..Default::default()
                 };
-                for panel in ["main", "tools", "log"] {
+                for panel in ["main", "tools", "log", "preview"] {
                     let mut app = SettingsApp::new(
                         settings.clone(),
                         dir.path().join("settings.json"),

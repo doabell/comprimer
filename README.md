@@ -18,10 +18,11 @@ On Windows 11, the shortcuts appear under **Show more options**. Move the execut
 - **Sizes:** enable Auto or resizing for each preset. Original-size Auto has its own switch.
 - **Quality:** adjust PNG, JPG, and WebP quality.
 - **Formats:** choose individual actions for each source format.
+- **Preview:** inspect the pending Explorer menu for JPG, PNG, or WebP.
 - **Tools:** edit executable paths. The button shows how many encoders are available.
 - **Log:** view activity, copy diagnostics, or open egui's inspector.
 
-The single settings screen supports English/French, dark/light themes, DPI scaling, and scrolling. Only clicking **Save** applies preferences and the selected Explorer menu state. Closing the window discards unsaved edits; keyboard shortcuts do not save. Enable **Explorer** to install or refresh the menu, or clear it to remove the menu, then save. Errors appear under **Log**.
+The single settings screen supports English/French, dark/light themes, DPI scaling, and scrolling. **Save** and **Ctrl+S** apply preferences and the selected Explorer menu state through the same action. Closing the window discards unsaved edits. Enable **Explorer** to install or refresh the menu, or clear it to remove the menu, then save. Errors appear under **Log**. The menu preview uses pending settings, reflects flat or nested menus, and never changes Explorer itself.
 
 Settings remain in `%APPDATA%\Comprimer\settings.json`. Existing C# settings, encoder paths, language, quality values, and per-size switches are read directly. Old Auto switches are migrated without enabling previously disabled shortcuts. Explicitly cleared or missing encoder paths never silently fall back to PATH. **Detect** updates the selected path; **Browse** opens a native file picker.
 
@@ -107,6 +108,8 @@ cargo build --locked --release
 
 The executable is `target\release\Comprimer.exe`; matching debug symbols are in `Comprimer.pdb`. Use a Rust-capable debugger such as CodeLLDB or the Visual Studio debugger to set breakpoints in a debug build.
 
+Release builds use size optimization and full link-time optimization, with the image-processing crate kept at full speed optimization. WebP codecs are external (`cwebp`/`dwebp`); the Rust WebP codec is only enabled for tests. Debug symbols remain separate, and panic backtraces and accessibility remain enabled. The measured x64 executable is about **7.3 MiB**, or **3.4 MiB** in the release ZIP; sizes vary with the toolchain.
+
 Unit and regression tests cover settings compatibility, explicit saving, CLI validation, quality, Auto selection, dimensions, collisions, encoder failures, publication rollback, isolated Explorer registration, and egui rendering in both languages/themes. Logging tests cover rotation, concurrent processes, fallback, bounded buffers, and panic reports. Run the real encoder integration suite after installing all four tools on PATH:
 
 ```powershell
@@ -115,7 +118,7 @@ cargo test --locked --test real_encoders -- --ignored
 
 One GitHub Actions workflow runs formatting, Clippy, tests, and a release build on Windows. CI uploads the executable and symbols separately; `v*` tags publish those same artifacts as a release ZIP and a symbols ZIP. Real encoder tests are opt-in and do not run in CI.
 
-For an isolated native UI screenshot (no settings or Explorer changes), use `cargo run --example ui_snapshot -- main en dark 820 570 out/main.png`. Panels are `main`, `tools`, and `log`; choose `en`/`fr` and `dark`/`light`.
+For an isolated native UI screenshot (no settings or Explorer changes), use `cargo run --example ui_snapshot -- main en dark 820 570 out/main.png`. Panels are `main`, `tools`, `log`, and `preview`; choose `en`/`fr` and `dark`/`light`.
 
 ## Code layout
 

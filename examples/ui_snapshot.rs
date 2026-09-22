@@ -65,7 +65,7 @@ fn main() -> eframe::Result {
         "Expected PANEL LANGUAGE THEME WIDTH HEIGHT OUTPUT.png"
     );
     assert!(
-        ["main", "tools", "log"].contains(&args[0].as_str()),
+        ["main", "tools", "log", "preview"].contains(&args[0].as_str()),
         "Unknown panel"
     );
     let settings = Settings {
