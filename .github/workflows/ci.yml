@@ -1,40 +1,74 @@
-name: CI
+name: Windows CI and release
 
 on:
   push:
-    branches: [main]
+    branches: [main, "feat/**"]
+    tags: ["v*"]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  build:
+  windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          dotnet-version: 8.0.x
-
-      - name: Restore
-        run: dotnet restore
-
-      - name: Build
-        run: dotnet build --configuration Release --no-restore
-
+          targets: x86_64-pc-windows-msvc
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        run: cargo clippy --locked --all-targets -- -D warnings
       - name: Test
-        run: dotnet test --configuration Release --no-build --verbosity normal
-
-      - name: Publish
-        run: dotnet publish src/Comprimer/Comprimer.csproj --configuration Release --runtime win-x64 --no-self-contained -p:PublishSingleFile=true --output ./publish
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        run: cargo test --locked --all-targets
+      - name: Build Windows executable
+        run: cargo build --locked --release
+      - name: Package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path publish -Force | Out-Null
+          Copy-Item target/release/Comprimer.exe, README.md, LICENSE -Destination publish
+      - uses: actions/upload-artifact@v4
         with:
           name: Comprimer-win-x64
-          path: ./publish/
+          path: publish/
           if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Comprimer-debug-symbols-win-x64
+          path: target/release/Comprimer.pdb
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: windows
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: Comprimer-win-x64
+          path: publish
+      - uses: actions/download-artifact@v4
+        with:
+          name: Comprimer-debug-symbols-win-x64
+          path: symbols
+      - name: Package release
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          Compress-Archive -Path publish/* -DestinationPath "Comprimer-$env:RELEASE_TAG-win-x64.zip"
+          Compress-Archive -Path symbols/* -DestinationPath "Comprimer-$env:RELEASE_TAG-symbols-win-x64.zip"
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: Comprimer-*.zip
+          fail_on_unmatched_files: true
+          generate_release_notes: true
