@@ -235,7 +235,7 @@ impl ExplorerRegistry {
                 let (command, _) = key.create_subkey("command")?;
                 command.set_value(
                     "",
-                    &format!("\"{}\" {} \"%1\"", exe.display(), entry.command),
+                    &format!("\"{}\" --headless {} \"%1\"", exe.display(), entry.command),
                 )?;
             }
         }

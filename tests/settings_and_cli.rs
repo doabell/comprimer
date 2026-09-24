@@ -14,6 +14,7 @@ fn legacy_settings_keep_shortcuts_and_dotnet_field_names() {
     fs::write(&path, r#"{"autoMode":false,"availableSizes":[720,1440],"jpg":{"downscale":false},"png":{"downscale":true,"convertToWebP":true},"webP":{"downscale":false},"executables":{"img2WebPPath":"C:\\tools\\cwebp.exe","dwebpPath":""},"encoders":{"webPQuality":42},"darkMode":false}"#).unwrap();
     let settings = config::load(&path).unwrap();
     assert!(!settings.auto_mode);
+    assert!(!settings.auto_preview);
     assert_eq!(settings.available_sizes, [720, 1440]);
     assert!(
         settings
@@ -40,6 +41,7 @@ fn roundtrip_preserves_independent_actions_paths_and_quality() {
     let path = dir.path().join("nested/settings.json");
     let mut settings = Settings {
         auto_mode: false,
+        auto_preview: true,
         comprimer_path: Some(String::new()),
         ..Default::default()
     };
@@ -56,6 +58,7 @@ fn roundtrip_preserves_independent_actions_paths_and_quality() {
     config::save(&path, &settings).unwrap();
     let loaded = config::load(&path).unwrap();
     assert!(loaded.actions(512).auto_resize);
+    assert!(loaded.auto_preview);
     assert!(!loaded.actions(512).resize);
     assert_eq!(loaded.comprimer_path, Some(String::new()));
     assert_eq!(loaded.executables.pngquant_path, None);
@@ -118,6 +121,36 @@ fn cli_preserves_legacy_commands_and_unicode_paths() {
         vec!["--downscale", "-1", "a.png"],
         vec!["--unknown"],
         vec!["--to-webp", "a.png", "extra"],
+    ] {
+        assert!(parse(&args).is_err(), "{args:?}");
+    }
+}
+
+#[test]
+fn headless_preserves_image_commands_and_never_opens_settings() {
+    for args in [
+        vec!["--auto", "photo été.png"],
+        vec!["--auto", "1024", "photo été.png"],
+        vec!["--downscale", "512", "photo été.jpg"],
+        vec!["--to-webp", "photo été.png"],
+        vec!["--to-jpg", "photo été.png"],
+        vec!["--pngquant", "photo été.png"],
+        vec!["--mozjpeg", "photo été.jpg"],
+        vec!["--toggle-overwrite"],
+        vec!["--diagnostics"],
+        vec!["--help"],
+    ] {
+        let mut headless = vec!["--headless"];
+        headless.extend_from_slice(&args);
+        assert_eq!(parse(&headless).unwrap(), parse(&args).unwrap());
+    }
+    for args in [
+        vec!["--headless"],
+        vec!["--headless", "--headless"],
+        vec!["--headless", "--auto"],
+        vec!["--headless", "--downscale", "0", "photo.png"],
+        vec!["--headless", "--unknown"],
+        vec!["--headless", "--to-webp", "photo.png", "extra"],
     ] {
         assert!(parse(&args).is_err(), "{args:?}");
     }

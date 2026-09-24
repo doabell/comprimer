@@ -73,7 +73,10 @@ fn all_extensions_support_flat_nested_and_preserve_other_apps() {
                 .unwrap()
                 .get_value::<String, _>("")
                 .unwrap();
-            assert_eq!(command, format!("\"{}\" --auto \"%1\"", exe.display()));
+            assert_eq!(
+                command,
+                format!("\"{}\" --headless --auto \"%1\"", exe.display())
+            );
         }
         let invalid = Settings {
             comprimer_path: Some(String::new()),

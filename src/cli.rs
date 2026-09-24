@@ -2,7 +2,7 @@ use crate::images::Operation;
 use anyhow::{Result, bail, ensure};
 use std::{ffi::OsString, path::PathBuf};
 
-pub const HELP: &str = "Comprimer — Windows image compression\n\nNo arguments: open settings\n--auto [SIZE] FILE\n--downscale SIZE FILE\n--to-webp FILE\n--to-jpg FILE\n--pngquant FILE\n--mozjpeg FILE\n--toggle-overwrite\n--diagnostics\n--help\n\nFailures return a nonzero exit code and are recorded in comprimer.log.\nUse RUST_LOG=comprimer=debug for encoder arguments and stderr.\nCOMPRIMER_CONFIG overrides the settings file for isolated development.\n";
+pub const HELP: &str = "Comprimer — Windows image compression\n\nNo arguments: open settings\n--headless COMMAND: process without a window (used by Explorer)\n--auto [SIZE] FILE\n--downscale SIZE FILE\n--to-webp FILE\n--to-jpg FILE\n--pngquant FILE\n--mozjpeg FILE\n--toggle-overwrite\n--diagnostics\n--help\n\nFailures return a nonzero exit code and are recorded in comprimer.log.\nUse RUST_LOG=comprimer=debug for encoder arguments and stderr.\nCOMPRIMER_CONFIG overrides the settings file for isolated development.\n";
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Command {
@@ -14,7 +14,16 @@ pub enum Command {
 }
 
 pub fn parse(args: &[OsString]) -> Result<Command> {
+    let headless = args.first().is_some_and(|arg| {
+        arg.to_str()
+            .is_some_and(|arg| arg.eq_ignore_ascii_case("--headless"))
+    });
+    let args = if headless { &args[1..] } else { args };
     if args.is_empty() {
+        ensure!(
+            !headless,
+            "Headless mode requires a command. Use --help for usage."
+        );
         return Ok(Command::Settings);
     }
     let command = args[0].to_str().unwrap_or("").to_ascii_lowercase();

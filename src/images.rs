@@ -1,6 +1,6 @@
 use crate::{
     settings::{DownscaleMode, Settings},
-    tools::{self, Runner},
+    tools::{self, ControlledRunner, RunControl, Runner},
 };
 use anyhow::{Context, Result, bail, ensure};
 use image::{DynamicImage, GenericImageView, ImageFormat, Rgb, RgbImage, imageops::FilterType};
@@ -8,7 +8,13 @@ use std::{
     ffi::OsString,
     fs,
     path::{Path, PathBuf},
+    time::Instant,
 };
+
+mod auto;
+mod classify;
+mod publication;
+mod selection;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Operation {
@@ -27,6 +33,8 @@ pub struct ImageService<'a> {
 
 impl ImageService<'_> {
     pub fn process(&self, input: &Path, operation: Operation) -> Result<Vec<PathBuf>> {
+        let started = Instant::now();
+        let control = RunControl::new(started + auto::TOTAL_BUDGET - auto::CLEANUP_RESERVE);
         ensure!(
             input.is_file(),
             "Source does not exist: {}",
@@ -50,11 +58,23 @@ impl ImageService<'_> {
                 })?;
             }
         }
-        // Stage on the destination volume so publishing does not rely on cross-volume moves.
-        let work = tempfile::Builder::new()
-            .prefix(".comprimer-")
-            .tempdir_in(parent(input))?;
-        let original = self.decode(input, work.path())?;
+        let work = working_directory(input, &std::env::temp_dir())?;
+        let original = if matches!(operation, Operation::Auto(_)) {
+            let runner = ControlledRunner {
+                inner: self.runner,
+                control: &control,
+            };
+            ImageService {
+                settings: self.settings,
+                runner: &runner,
+            }
+            .decode(input, work.path())?
+        } else {
+            self.decode(input, work.path())?
+        };
+        if matches!(operation, Operation::Auto(_)) {
+            control.check()?;
+        }
         let (width, height) = dimensions(
             original.width(),
             original.height(),
@@ -73,33 +93,8 @@ impl ImageService<'_> {
         let mut outputs = Vec::new();
         match operation {
             Operation::Auto(_) => {
-                for format in ["png", "jpg", "webp"] {
-                    self.encode(
-                        &bitmap,
-                        &work.path().join(format!("candidate.{format}")),
-                        format,
-                        work.path(),
-                        true,
-                    )?;
-                }
-                let png = work.path().join("candidate.png");
-                let jpg = work.path().join("candidate.jpg");
-                let formats: &[&str] = if fs::metadata(&png)?.len() < fs::metadata(&jpg)?.len() {
-                    &["png"]
-                } else {
-                    &["jpg", "webp"]
-                };
-                for format in formats {
-                    outputs.push((
-                        work.path().join(format!("candidate.{format}")),
-                        output_path(
-                            input,
-                            format,
-                            size.map(|n| format!("-{n}px")).as_deref().unwrap_or(""),
-                            self.settings.overwrite_original,
-                        )?,
-                    ));
-                }
+                control.check()?;
+                return auto::process(self, &bitmap, input, work.path(), size, started, &control);
             }
             _ => {
                 let (format, suffix, required) = match operation {
@@ -169,7 +164,6 @@ impl ImageService<'_> {
         work: &Path,
         required: bool,
     ) -> Result<()> {
-        let quality = &self.settings.encoders;
         let encoder = self.encoder(format);
         if required {
             ensure!(
@@ -183,7 +177,7 @@ impl ImageService<'_> {
                 let mut file = fs::File::create(output)?;
                 image::codecs::jpeg::JpegEncoder::new_with_quality(
                     &mut file,
-                    quality.jpg_quality.clamp(0, 100) as u8,
+                    self.settings.encoders.jpg_quality.clamp(0, 100) as u8,
                 )
                 .encode_image(&opaque)?;
                 return Ok(());
@@ -201,6 +195,17 @@ impl ImageService<'_> {
             path
         };
         let encoder = encoder.context("WebP output requires cwebp; configure its path in Tools")?;
+        self.encode_external(&input, output, format, &encoder)
+    }
+
+    fn encode_external(
+        &self,
+        input: &Path,
+        output: &Path,
+        format: &str,
+        encoder: &Path,
+    ) -> Result<()> {
+        let quality = &self.settings.encoders;
         let args: Vec<OsString> = match format {
             "png" => vec![
                 format!(
@@ -233,7 +238,7 @@ impl ImageService<'_> {
             ],
             _ => bail!("Unsupported output format: {format}"),
         };
-        let result = self.runner.run(&encoder, &args)?;
+        let result = self.runner.run(encoder, &args)?;
         if format == "png" && result.code == 99 {
             tracing::info!("pngquant could not meet quality floor; keeping lossless PNG");
             fs::copy(input, output)?;
@@ -255,6 +260,24 @@ impl ImageService<'_> {
     }
 }
 
+// Intermediate images belong in the system temp directory. Only fall back beside
+// the source when that directory cannot host a workspace.
+fn working_directory(input: &Path, temporary_root: &Path) -> Result<tempfile::TempDir> {
+    let mut builder = tempfile::Builder::new();
+    builder.prefix(".comprimer-");
+    builder.tempdir_in(temporary_root).or_else(|error| {
+        tracing::warn!(directory = %temporary_root.display(), %error,
+            "Temporary directory unavailable; using the image folder");
+        builder.tempdir_in(parent(input)).with_context(|| {
+            format!(
+                "Create compression workspace in {} (temporary directory {} failed: {error})",
+                parent(input).display(),
+                temporary_root.display()
+            )
+        })
+    })
+}
+
 pub fn dimensions(width: u32, height: u32, size: Option<u32>, mode: DownscaleMode) -> (u32, u32) {
     let dimension = match mode {
         DownscaleMode::LongestSide => width.max(height),
@@ -271,6 +294,9 @@ pub fn dimensions(width: u32, height: u32, size: Option<u32>, mode: DownscaleMod
 }
 
 pub fn flatten_on_white(bitmap: &DynamicImage) -> RgbImage {
+    if let Some(rgb) = bitmap.as_rgb8() {
+        return rgb.clone();
+    }
     let rgba = bitmap.to_rgba8();
     RgbImage::from_fn(rgba.width(), rgba.height(), |x, y| {
         let pixel = rgba.get_pixel(x, y);
@@ -310,10 +336,21 @@ pub fn output_path(input: &Path, format: &str, suffix: &str, overwrite: bool) ->
     )
 }
 
-// Prepare all outputs and backups before publishing any. Roll back earlier outputs on failure.
+// Copy only selected outputs to destination-local staging files before publishing.
+// This supports workspaces on another volume while retaining atomic per-file replacement
+// and rollback of earlier outputs on failure.
 pub fn publish(outputs: &[(PathBuf, PathBuf)], overwrite: bool) -> Result<()> {
+    let changes: Vec<_> = outputs
+        .iter()
+        .map(|(source, destination)| (Some(source.clone()), destination.clone(), overwrite))
+        .collect();
+    publish_changes(&changes)
+}
+
+// Replacements and removals share preparation and rollback, including format corrections.
+fn publish_changes(outputs: &[(Option<PathBuf>, PathBuf, bool)]) -> Result<()> {
     let mut prepared = Vec::new();
-    for (source, destination) in outputs {
+    for (source, destination, overwrite) in outputs {
         ensure!(
             !destination.is_dir(),
             "Output is a directory: {}",
@@ -321,7 +358,7 @@ pub fn publish(outputs: &[(PathBuf, PathBuf)], overwrite: bool) -> Result<()> {
         );
         let backup = if destination.try_exists()? {
             ensure!(
-                overwrite,
+                *overwrite,
                 "Output already exists: {}",
                 destination.display()
             );
@@ -335,17 +372,26 @@ pub fn publish(outputs: &[(PathBuf, PathBuf)], overwrite: bool) -> Result<()> {
             None
         };
         prepared.push((
-            stage(source, parent(destination))?,
+            source
+                .as_ref()
+                .map(|source| stage(source, parent(destination)))
+                .transpose()?,
             destination.clone(),
             backup,
+            *overwrite,
         ));
     }
     let mut published: Vec<(PathBuf, Option<tempfile::NamedTempFile>)> = Vec::new();
-    for (file, destination, backup) in prepared {
-        let result = if overwrite {
-            file.persist(&destination)
+    for (file, destination, backup, overwrite) in prepared {
+        let result = if let Some(file) = file {
+            let result = if overwrite {
+                file.persist(&destination)
+            } else {
+                file.persist_noclobber(&destination)
+            };
+            result.map(|_| ()).map_err(|error| error.error)
         } else {
-            file.persist_noclobber(&destination)
+            fs::remove_file(&destination)
         };
         if let Err(error) = result {
             let mut failures = Vec::new();
@@ -366,7 +412,7 @@ pub fn publish(outputs: &[(PathBuf, PathBuf)], overwrite: bool) -> Result<()> {
             bail!(
                 "Could not publish {}: {}{}",
                 destination.display(),
-                error.error,
+                error,
                 if failures.is_empty() {
                     String::new()
                 } else {
@@ -396,4 +442,48 @@ fn parent(path: &Path) -> &Path {
     path.parent()
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or(Path::new("."))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn workspace_prefers_temp_and_cleans_up() {
+        let root = tempfile::tempdir().unwrap();
+        let images = root.path().join("images");
+        let temporary = root.path().join("temp");
+        fs::create_dir(&images).unwrap();
+        fs::create_dir(&temporary).unwrap();
+        let source = images.join("photo.png");
+        let work = working_directory(&source, &temporary).unwrap();
+        assert_eq!(work.path().parent().unwrap(), temporary);
+        assert_eq!(fs::read_dir(&images).unwrap().count(), 0);
+        let path = work.path().to_owned();
+        drop(work);
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn workspace_falls_back_to_image_folder_when_temp_is_unusable() {
+        let root = tempfile::tempdir().unwrap();
+        let unavailable = root.path().join("not-a-directory");
+        fs::write(&unavailable, b"blocked").unwrap();
+        let work = working_directory(&root.path().join("photo.png"), &unavailable).unwrap();
+        assert_eq!(work.path().parent().unwrap(), root.path());
+        let path = work.path().to_owned();
+        drop(work);
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn workspace_reports_both_failures() {
+        let root = tempfile::tempdir().unwrap();
+        let source = root.path().join("missing-images/photo.png");
+        let temporary = root.path().join("missing-temp");
+        let error = working_directory(&source, &temporary).unwrap_err();
+        let message = format!("{error:#}");
+        assert!(message.contains("missing-images"), "{message}");
+        assert!(message.contains("missing-temp"), "{message}");
+    }
 }
