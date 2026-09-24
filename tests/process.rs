@@ -65,3 +65,36 @@ fn timeout_stops_the_encoder_and_reports_the_reason() {
     assert!(error.to_string().contains("timed out"));
     assert!(start.elapsed() < Duration::from_secs(5));
 }
+
+#[test]
+fn shared_deadline_interrupts_a_running_encoder() {
+    use comprimer::tools::{RunControl, RunStopped};
+    let started = Instant::now();
+    let control = RunControl::new(started + Duration::from_millis(150));
+    let result = SystemRunner::default().run_controlled(
+        &std::env::current_exe().unwrap(),
+        &arguments("slow_encoder_helper"),
+        &control,
+    );
+    let error = result
+        .err()
+        .expect("Encoder should hit the shared deadline");
+    assert!(error.is::<RunStopped>(), "{error:#}");
+    assert!(started.elapsed() < Duration::from_secs(2));
+}
+
+#[test]
+fn cancellation_prevents_starting_another_encoder() {
+    use comprimer::tools::{RunControl, RunStopped};
+    let control = RunControl::new(Instant::now() + Duration::from_secs(5));
+    control.cancel();
+    let error = SystemRunner::default()
+        .run_controlled(
+            std::path::Path::new("this-program-does-not-exist.exe"),
+            &[],
+            &control,
+        )
+        .err()
+        .unwrap();
+    assert!(error.is::<RunStopped>(), "{error:#}");
+}

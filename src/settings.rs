@@ -21,6 +21,8 @@ pub struct Settings {
     pub language: String,
     pub dark_mode: bool,
     pub auto_mode: bool,
+    /// Use a 512px codec preview when the inexpensive classifier abstains.
+    pub auto_preview: bool,
     pub comprimer_path: Option<String>,
     pub encoders: Encoders,
     pub jpg: FormatSettings,
@@ -42,6 +44,7 @@ impl Default for Settings {
             language: "en".into(),
             dark_mode: true,
             auto_mode: true,
+            auto_preview: false,
             comprimer_path: None,
             encoders: Encoders::default(),
             jpg: FormatSettings {

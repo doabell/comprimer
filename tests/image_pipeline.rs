@@ -6,11 +6,12 @@ use comprimer::{
 };
 use image::{DynamicImage, GenericImageView, Rgba, RgbaImage};
 use std::{
-    cell::RefCell,
     ffi::OsString,
     fs,
     os::windows::fs::OpenOptionsExt,
     path::{Path, PathBuf},
+    sync::{Condvar, Mutex},
+    time::Duration,
 };
 
 type EncoderCall = (String, Vec<OsString>, (u32, u32));
@@ -19,7 +20,7 @@ struct FakeEncoders {
     png: usize,
     jpg: usize,
     fail: Option<&'static str>,
-    calls: RefCell<Vec<EncoderCall>>,
+    calls: Mutex<Vec<EncoderCall>>,
 }
 
 impl Default for FakeEncoders {
@@ -28,7 +29,7 @@ impl Default for FakeEncoders {
             png: 100,
             jpg: 200,
             fail: None,
-            calls: RefCell::new(Vec::new()),
+            calls: Mutex::new(Vec::new()),
         }
     }
 }
@@ -60,7 +61,8 @@ impl Runner for FakeEncoders {
             assert_eq!(bitmap.to_rgb8().get_pixel(0, 0).0, [255, 255, 255]);
         }
         self.calls
-            .borrow_mut()
+            .lock()
+            .unwrap()
             .push((name.clone(), args.to_vec(), bitmap.dimensions()));
         fs::write(
             output,
@@ -99,11 +101,15 @@ fn setup(dir: &Path) -> (Settings, PathBuf) {
 }
 
 #[test]
-fn auto_selects_png_only_or_jpg_and_webp_including_ties() {
+fn auto_keeps_both_groups_within_five_percent_including_exact_boundaries() {
     for (png, jpg, formats) in [
         (100, 200, vec!["png"]),
         (200, 100, vec!["jpg", "webp"]),
-        (100, 100, vec!["jpg", "webp"]),
+        (100, 100, vec!["png", "jpg", "webp"]),
+        (100, 105, vec!["png", "jpg", "webp"]),
+        (105, 100, vec!["png", "jpg", "webp"]),
+        (100, 106, vec!["png"]),
+        (106, 100, vec!["jpg", "webp"]),
     ] {
         let dir = tempfile::tempdir().unwrap();
         let (settings, source) = setup(dir.path());
@@ -127,11 +133,17 @@ fn auto_selects_png_only_or_jpg_and_webp_including_ties() {
             formats
         );
         assert_eq!(fs::read(&source).unwrap(), original);
-        assert_eq!(runner.calls.borrow().len(), 3);
+        let calls = runner.calls.lock().unwrap().len();
+        if formats == ["png"] {
+            assert!((2..=3).contains(&calls)); // A losing WebP job can be cancelled.
+        } else {
+            assert_eq!(calls, 3);
+        }
         assert!(
             runner
                 .calls
-                .borrow()
+                .lock()
+                .unwrap()
                 .iter()
                 .all(|(_, _, dimensions)| *dimensions == (40, 20))
         );
@@ -169,17 +181,25 @@ fn quality_values_reach_encoders_and_jpg_is_flattened() {
     settings.encoders.png_quality = 34;
     settings.encoders.jpg_quality = 56;
     settings.encoders.webp_quality = 78;
-    let runner = FakeEncoders::default();
+    let runner = FakeEncoders {
+        png: 300, // A JPG win requires all three configured encoders.
+        ..Default::default()
+    };
     ImageService {
         settings: &settings,
         runner: &runner,
     }
     .process(&source, Operation::Auto(None))
     .unwrap();
-    let calls = runner.calls.borrow();
-    assert!(calls[0].1.contains(&"--quality=12-34".into()));
-    assert!(calls[1].1.contains(&"56".into()));
-    assert!(calls[2].1.contains(&"78".into()));
+    let calls = runner.calls.lock().unwrap();
+    for (encoder, argument) in [
+        ("pngquant", "--quality=12-34"),
+        ("cjpeg", "56"),
+        ("cwebp", "78"),
+    ] {
+        let call = calls.iter().find(|(name, _, _)| name == encoder).unwrap();
+        assert!(call.1.contains(&argument.into()));
+    }
 }
 
 #[test]
@@ -192,6 +212,7 @@ fn encoder_failures_leave_source_and_existing_outputs_untouched() {
         fs::write(&jpg, b"existing JPG").unwrap();
         let original = fs::read(&source).unwrap();
         let runner = FakeEncoders {
+            png: 300, // WebP failure matters when JPG/WebP would win.
             fail: Some(tool),
             ..Default::default()
         };
@@ -291,7 +312,7 @@ fn built_in_png_resize_works_without_tools() {
             .is_empty()
     );
     assert!(service.process(&source, Operation::Auto(None)).is_err());
-    assert!(runner.calls.borrow().is_empty());
+    assert!(runner.calls.lock().unwrap().is_empty());
 }
 
 #[test]
@@ -301,4 +322,100 @@ fn partial_alpha_is_composited_on_white() {
         images::flatten_on_white(&image).get_pixel(0, 0).0,
         [127, 127, 127]
     );
+}
+
+struct ConcurrentEncoders {
+    inner: FakeEncoders,
+    started: Mutex<usize>,
+    ready: Condvar,
+    completed: std::sync::atomic::AtomicUsize,
+}
+
+impl Runner for ConcurrentEncoders {
+    fn run(&self, exe: &Path, args: &[OsString]) -> Result<ProcessOutput> {
+        // All three jobs must start before any may finish. A sequential
+        // implementation fails with a bounded timeout instead of hanging.
+        let mut started = self.started.lock().unwrap();
+        *started += 1;
+        self.ready.notify_all();
+        let (started, _) = self
+            .ready
+            .wait_timeout_while(started, Duration::from_secs(5), |started| *started < 3)
+            .unwrap();
+        anyhow::ensure!(*started == 3, "Auto encoders did not overlap");
+        drop(started);
+        let result = self.inner.run(exe, args);
+        self.completed
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        result
+    }
+}
+
+#[test]
+fn auto_overlaps_encoders_shares_png_input_and_joins_on_failure() {
+    for fail in [None, Some("pngquant"), Some("cjpeg"), Some("cwebp")] {
+        let dir = tempfile::tempdir().unwrap();
+        let (settings, source) = setup(dir.path());
+        let original = fs::read(&source).unwrap();
+        let runner = ConcurrentEncoders {
+            inner: FakeEncoders {
+                png: 300,
+                fail,
+                ..Default::default()
+            },
+            started: Mutex::new(0),
+            ready: Condvar::new(),
+            completed: std::sync::atomic::AtomicUsize::new(0),
+        };
+        let result = ImageService {
+            settings: &settings,
+            runner: &runner,
+        }
+        .process(&source, Operation::Auto(None));
+        assert_eq!(result.is_ok(), fail.is_none(), "{result:?}");
+        assert_eq!(
+            runner.completed.load(std::sync::atomic::Ordering::SeqCst),
+            3
+        );
+        assert_eq!(fs::read(&source).unwrap(), original);
+        let calls = runner.inner.calls.lock().unwrap();
+        let input = |name: &str| -> PathBuf {
+            let call = calls
+                .iter()
+                .find(|(encoder, _, _)| encoder == name)
+                .unwrap();
+            PathBuf::from(if name == "cwebp" {
+                &call.1[2]
+            } else {
+                call.1.last().unwrap()
+            })
+        };
+        if fail.is_none() {
+            assert_eq!(input("pngquant"), input("cwebp"));
+        } else {
+            // Failed operations must not publish any candidate.
+            assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 4);
+        }
+        for (name, _, _) in calls.iter() {
+            let path = input(name);
+            let work = path.parent().unwrap();
+            assert_eq!(
+                work.parent().unwrap().canonicalize().unwrap(),
+                std::env::temp_dir().canonicalize().unwrap()
+            );
+            assert!(!work.exists(), "Workspace leaked: {}", work.display());
+        }
+    }
+}
+
+#[test]
+fn publication_accepts_candidates_from_a_separate_workspace() {
+    let work = tempfile::tempdir().unwrap();
+    let images = tempfile::tempdir().unwrap();
+    let candidate = work.path().join("candidate.png");
+    let destination = images.path().join("image.png");
+    fs::write(&candidate, b"encoded image").unwrap();
+    images::publish(&[(candidate, destination.clone())], false).unwrap();
+    assert_eq!(fs::read(destination).unwrap(), b"encoded image");
+    assert_eq!(fs::read_dir(images.path()).unwrap().count(), 1);
 }
