@@ -1,9 +1,10 @@
-use anyhow::Result;
-use comprimer::{
+use super::Timing;
+use crate::{
     images::{ImageService, Operation},
     settings::Settings,
     tools::{ProcessOutput, RunControl, RunStopped, Runner},
 };
+use anyhow::Result;
 use image::{GenericImageView, ImageEncoder, Rgba, RgbaImage};
 use std::{
     ffi::OsString,
@@ -15,6 +16,10 @@ use std::{
 
 type InitialSnapshot = (Duration, Vec<(String, Vec<u8>)>);
 
+fn functional_timing() -> Timing {
+    Timing::new(Duration::from_secs(30), Duration::from_secs(45))
+}
+
 struct Encoders {
     directory: PathBuf,
     predicted_png: bool,
@@ -22,6 +27,9 @@ struct Encoders {
     fail_verification: bool,
     expire_verification: bool,
     slow_jpg: bool,
+    wait_for_preview: bool,
+    preview_delay: Duration,
+    preview_completed: std::sync::atomic::AtomicU8,
     started: Instant,
     original: Vec<u8>,
     first: Mutex<Option<InitialSnapshot>>,
@@ -52,12 +60,22 @@ impl Encoders {
         let preview = image.width() <= 512;
         if preview {
             self.previews.lock().unwrap().push(image.dimensions());
+            std::thread::sleep(self.preview_delay);
         } else if name == "pngquant" {
             // Hold full PNG verification until a provisional file is actually
             // visible, regardless of when the worker was launched.
             loop {
                 if let Some(control) = control {
                     control.check()?;
+                }
+                if self.wait_for_preview
+                    && self
+                        .preview_completed
+                        .load(std::sync::atomic::Ordering::Acquire)
+                        != 3
+                {
+                    std::thread::sleep(Duration::from_millis(5));
+                    continue;
                 }
                 // Poll metadata, not open file handles, while Windows is
                 // replacing the provisional outputs. Read after publication.
@@ -127,6 +145,12 @@ impl Encoders {
             output,
             vec![if name == "pngquant" { b'P' } else { b'J' }; bytes],
         )?;
+        if preview {
+            self.preview_completed.fetch_or(
+                if name == "pngquant" { 1 } else { 2 },
+                std::sync::atomic::Ordering::Release,
+            );
+        }
         Ok(ProcessOutput {
             code: 0,
             stderr: String::new(),
@@ -191,6 +215,9 @@ fn setup(directory: &Path, predicted_png: bool, actual_png: bool) -> (Settings, 
         fail_verification: false,
         expire_verification: false,
         slow_jpg: false,
+        wait_for_preview: false,
+        preview_delay: Duration::ZERO,
+        preview_completed: std::sync::atomic::AtomicU8::new(0),
         started: Instant::now(),
         original: fs::read(&input).unwrap(),
         first: Mutex::new(None),
@@ -205,7 +232,13 @@ fn full_size_verification_corrects_both_preview_directions_and_restores_original
     {
         for overwrite in [false, true] {
             let dir = tempfile::tempdir().unwrap();
-            let (mut settings, input, encoders) = setup(dir.path(), predicted_png, actual_png);
+            let (mut settings, input, mut encoders) = setup(dir.path(), predicted_png, actual_png);
+            encoders.wait_for_preview = true;
+            if predicted_png && !actual_png && !overwrite {
+                // Reproduce a preview exceeding the production initial target.
+                // Correctness must not depend on a shared runner finishing it in 850ms.
+                encoders.preview_delay = Duration::from_millis(1100);
+            }
             settings.overwrite_original = overwrite;
             let original = fs::read(&input).unwrap();
             fs::write(input.with_extension("jpg"), b"original JPG").unwrap();
@@ -214,10 +247,15 @@ fn full_size_verification_corrects_both_preview_directions_and_restores_original
                 settings: &settings,
                 runner: &encoders,
             }
-            .process(&input, Operation::Auto(None))
+            .process_with_timing(&input, Operation::Auto(None), functional_timing())
             .unwrap();
             let first = encoders.first.lock().unwrap();
-            let (_, files) = first.as_ref().unwrap();
+            let (elapsed, files) = first.as_ref().unwrap_or_else(|| {
+                panic!("No provisional output: predicted_png={predicted_png}, actual_png={actual_png}, overwrite={overwrite}")
+            });
+            if !encoders.preview_delay.is_zero() {
+                assert!(*elapsed >= encoders.preview_delay);
+            }
             if predicted_png {
                 let name = if overwrite {
                     "photo.png"
@@ -288,7 +326,7 @@ fn failed_verification_reverts_provisional_overwrites() {
         settings: &settings,
         runner: &encoders,
     }
-    .process(&input, Operation::Auto(None))
+    .process_with_timing(&input, Operation::Auto(None), functional_timing())
     .unwrap_err();
     assert!(error.to_string().contains("verification failed"));
     assert!(encoders.first.lock().unwrap().is_some());
@@ -491,7 +529,7 @@ fn auto_jobs_overlap_and_full_results_outrank_preview_including_near_ties() {
                 settings: &settings,
                 runner: &encoders,
             }
-            .process(&input, Operation::Auto(None))
+            .process_with_timing(&input, Operation::Auto(None), functional_timing())
             .unwrap();
             assert_eq!(
                 encoders
@@ -539,7 +577,7 @@ fn cheap_prediction_skips_preview_and_full_size_verification_can_reverse_it() {
         settings: &settings,
         runner: &encoders,
     }
-    .process(&input, Operation::Auto(None))
+    .process_with_timing(&input, Operation::Auto(None), functional_timing())
     .unwrap();
     assert!(encoders.previews.lock().unwrap().is_empty());
     assert!(encoders.first.lock().unwrap().is_some());
@@ -607,12 +645,13 @@ fn any_encoder_can_publish_first_without_waiting_for_the_other_two() {
             directory: dir.path().to_owned(),
             first,
         };
-        let started = Instant::now();
+        let timing = functional_timing();
+        let initial_deadline = timing.initial_deadline;
         let outputs = ImageService {
             settings: &settings,
             runner: &runner,
         }
-        .process(&input, Operation::Auto(None))
+        .process_with_timing(&input, Operation::Auto(None), timing)
         .unwrap();
         assert_eq!(
             outputs.len(),
@@ -620,7 +659,7 @@ fn any_encoder_can_publish_first_without_waiting_for_the_other_two() {
             "All three near-tie outputs must finish: {first}"
         );
         assert!(
-            started.elapsed() < Duration::from_secs(1),
+            Instant::now() < initial_deadline,
             "{first} waited for a deadline"
         );
         for output in outputs {

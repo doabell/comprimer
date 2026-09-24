@@ -11,13 +11,42 @@ use std::{
     time::{Duration, Instant},
 };
 
-pub(super) const INITIAL_BUDGET: Duration = Duration::from_secs(1);
-pub(super) const TOTAL_BUDGET: Duration = Duration::from_secs(5);
+const INITIAL_BUDGET: Duration = Duration::from_secs(1);
+const TOTAL_BUDGET: Duration = Duration::from_secs(5);
 // Reserve time inside the visible-result and total budgets for atomic publication,
 // process startup, and the bounded process-tree termination in SystemRunner.
 const PUBLICATION_RESERVE: Duration = Duration::from_millis(150);
-pub(super) const CLEANUP_RESERVE: Duration = Duration::from_millis(750);
+const CLEANUP_RESERVE: Duration = Duration::from_millis(750);
 const PREVIEW_SIZE: u32 = 512;
+
+#[cfg(test)]
+mod tests;
+
+/// Share the same start and deadlines across decoding and every encoder.
+/// Tests of ordering can use a generous allowance independently of the tests
+/// that exercise the production one/five-second timing targets.
+pub(super) struct Timing {
+    pub started: Instant,
+    pub initial_deadline: Instant,
+    pub control: RunControl,
+}
+
+impl Timing {
+    pub fn new(initial: Duration, total: Duration) -> Self {
+        let started = Instant::now();
+        Self {
+            started,
+            initial_deadline: started + initial - PUBLICATION_RESERVE,
+            control: RunControl::new(started + total - CLEANUP_RESERVE),
+        }
+    }
+}
+
+impl Default for Timing {
+    fn default() -> Self {
+        Self::new(INITIAL_BUDGET, TOTAL_BUDGET)
+    }
+}
 
 enum Event {
     InputReady,
@@ -125,10 +154,11 @@ pub(super) fn process(
     input: &Path,
     work: &Path,
     size: Option<u32>,
-    started: Instant,
-    control: &RunControl,
+    timing: &Timing,
 ) -> Result<Vec<PathBuf>> {
-    let initial_budget = INITIAL_BUDGET - PUBLICATION_RESERVE;
+    let started = timing.started;
+    let control = &timing.control;
+    let initial_budget = timing.initial_deadline.duration_since(started);
     let mut published = Publication::new(service.settings.overwrite_original);
     let suffix = size.map(|size| format!("-{size}px")).unwrap_or_default();
     let small = bitmap.width().max(bitmap.height()) <= PREVIEW_SIZE;

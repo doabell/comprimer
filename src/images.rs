@@ -1,6 +1,6 @@
 use crate::{
     settings::{DownscaleMode, Settings},
-    tools::{self, ControlledRunner, RunControl, Runner},
+    tools::{self, ControlledRunner, Runner},
 };
 use anyhow::{Context, Result, bail, ensure};
 use image::{DynamicImage, GenericImageView, ImageFormat, Rgb, RgbImage, imageops::FilterType};
@@ -8,7 +8,6 @@ use std::{
     ffi::OsString,
     fs,
     path::{Path, PathBuf},
-    time::Instant,
 };
 
 mod auto;
@@ -33,8 +32,16 @@ pub struct ImageService<'a> {
 
 impl ImageService<'_> {
     pub fn process(&self, input: &Path, operation: Operation) -> Result<Vec<PathBuf>> {
-        let started = Instant::now();
-        let control = RunControl::new(started + auto::TOTAL_BUDGET - auto::CLEANUP_RESERVE);
+        self.process_with_timing(input, operation, auto::Timing::default())
+    }
+
+    fn process_with_timing(
+        &self,
+        input: &Path,
+        operation: Operation,
+        timing: auto::Timing,
+    ) -> Result<Vec<PathBuf>> {
+        let control = &timing.control;
         ensure!(
             input.is_file(),
             "Source does not exist: {}",
@@ -62,7 +69,7 @@ impl ImageService<'_> {
         let original = if matches!(operation, Operation::Auto(_)) {
             let runner = ControlledRunner {
                 inner: self.runner,
-                control: &control,
+                control,
             };
             ImageService {
                 settings: self.settings,
@@ -94,7 +101,7 @@ impl ImageService<'_> {
         match operation {
             Operation::Auto(_) => {
                 control.check()?;
-                return auto::process(self, &bitmap, input, work.path(), size, started, &control);
+                return auto::process(self, &bitmap, input, work.path(), size, &timing);
             }
             _ => {
                 let (format, suffix, required) = match operation {
